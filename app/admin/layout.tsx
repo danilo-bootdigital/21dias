@@ -11,6 +11,7 @@ const NAV: [string, string][] = [
   ["/admin/matriculas", "Matrículas"],
   ["/admin/entitlements", "Entitlements"],
   ["/admin/acesso", "Conceder acesso"],
+  ["/perfil", "Perfil"],
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
