@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { salvarPerfil } from "@/lib/auth/actions";
+import { NomeComMedalha } from "@/components/gamificacao";
+import { getEvolutionReward } from "@/lib/gamificacao/recompensa";
+import { PerfilForm, type PerfilInicial } from "@/components/perfil/perfil-form";
 
 export default async function PerfilPage({
   searchParams,
@@ -24,22 +26,71 @@ export default async function PerfilPage({
   const { data: perfil } = domainUser
     ? await supabase
         .from("guerreiro_profiles")
-        .select("nome_guerreiro, cidade, foto_url, bio")
+        .select("nome_guerreiro, idade, peso, estado_civil, sexo, profissao, cidade, foto_url, bio")
         .eq("user_id", domainUser.id)
         .maybeSingle()
     : { data: null };
 
-  const p = (perfil ?? {}) as {
-    nome_guerreiro?: string;
-    cidade?: string;
-    foto_url?: string;
-    bio?: string;
+  const p = (perfil ?? {}) as Partial<PerfilInicial>;
+  const inicial: PerfilInicial = {
+    nome_guerreiro: p.nome_guerreiro ?? "",
+    idade: p.idade ?? null,
+    peso: p.peso ?? null,
+    estado_civil: p.estado_civil ?? null,
+    sexo: p.sexo ?? null,
+    profissao: p.profissao ?? null,
+    cidade: p.cidade ?? null,
+    bio: p.bio ?? null,
+    foto_url: p.foto_url ?? null,
   };
+
+  // Percentual de evolução (índice de disciplina) — usado apenas para a
+  // recompensa visual; NÃO altera nenhum cálculo de pontuação/evolução.
+  let percentualEvolucao = 0;
+  if (domainUser) {
+    const { data: mRow } = await supabase
+      .from("matriculas")
+      .select("id")
+      .eq("user_id", domainUser.id)
+      .order("joined_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const matriculaId = (mRow as { id: string } | null)?.id;
+    if (matriculaId) {
+      const { data: paRow } = await supabase
+        .from("pontuacao_agregada")
+        .select("indice_disciplina, disciplina_final")
+        .eq("matricula_id", matriculaId)
+        .maybeSingle();
+      const pa = (paRow ?? {}) as { indice_disciplina?: number; disciplina_final?: number };
+      percentualEvolucao = Number(pa.disciplina_final ?? pa.indice_disciplina ?? 0);
+    }
+  }
+  const recompensa = getEvolutionReward(percentualEvolucao);
+  const nomeGuerreiro = p.nome_guerreiro?.trim() || "Guerreiro";
 
   return (
     <div>
       <h1 className="font-display text-3xl font-semibold">Perfil do Guerreiro</h1>
       <p className="mt-1 text-muted">{user.email}</p>
+
+      <div
+        className={`mt-5 rounded-2xl border bg-surface p-5 ${
+          recompensa.nivel === "ouro" ? "border-[#FFD54F]/40" : "border-border"
+        }`}
+      >
+        <p className="text-xs uppercase tracking-wider text-subtle">Nome de guerreiro</p>
+        <NomeComMedalha
+          nome={nomeGuerreiro}
+          percentual={percentualEvolucao}
+          as="h2"
+          className="mt-1 text-2xl"
+        />
+        <p className="mt-3 text-sm text-subtle">
+          Evolução: <strong className="text-text">{Math.round(percentualEvolucao)}%</strong>
+          {recompensa.temMedalha ? ` · ${recompensa.label} (${recompensa.faixa})` : " · sem medalha ainda"}
+        </p>
+      </div>
 
       {!domainUser ? (
         <p className="mt-4 rounded-lg border border-red-900/50 bg-red-950/40 px-3 py-2 text-sm text-red-300">
@@ -57,49 +108,7 @@ export default async function PerfilPage({
         </p>
       ) : null}
 
-      <form action={salvarPerfil} className="mt-6 flex flex-col gap-4">
-        <label className="flex flex-col gap-1 text-sm text-muted">
-          Nome de guerreiro
-          <input
-            name="nome_guerreiro"
-            required
-            defaultValue={p.nome_guerreiro ?? ""}
-            className="rounded-lg border border-border bg-ground px-3 py-2 text-text outline-none focus:border-gold"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-muted">
-          Cidade
-          <input
-            name="cidade"
-            defaultValue={p.cidade ?? ""}
-            className="rounded-lg border border-border bg-ground px-3 py-2 text-text outline-none focus:border-gold"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-muted">
-          Foto (URL)
-          <input
-            name="foto_url"
-            type="url"
-            defaultValue={p.foto_url ?? ""}
-            className="rounded-lg border border-border bg-ground px-3 py-2 text-text outline-none focus:border-gold"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-muted">
-          Bio
-          <textarea
-            name="bio"
-            rows={3}
-            defaultValue={p.bio ?? ""}
-            className="rounded-lg border border-border bg-ground px-3 py-2 text-text outline-none focus:border-gold"
-          />
-        </label>
-        <button
-          type="submit"
-          className="self-start rounded-lg bg-gold px-5 py-2 font-medium text-ground transition hover:bg-gold-strong"
-        >
-          Salvar perfil
-        </button>
-      </form>
+      <PerfilForm inicial={inicial} authUserId={user.id} desabilitado={!domainUser} />
     </div>
   );
 }
