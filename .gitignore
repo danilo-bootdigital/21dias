@@ -38,3 +38,6 @@ next-env.d.ts
 
 # graphify (cache/saída da ferramenta — entregável fica em docs/dominio/)
 graphify-out/
+
+# vercel (project linking — não versionar)
+.vercel
