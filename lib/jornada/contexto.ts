@@ -23,10 +23,20 @@ export async function jornadaContexto() {
     };
   const { data } = await supabase
     .from("matriculas")
-    .select("id, turma_id, status")
+    .select("id, turma_id, status, turmas(status)")
     .eq("user_id", domainId)
     .order("joined_at", { ascending: false });
-  const matriculas = (data ?? []) as { id: string; turma_id: string; status: string }[];
-  const ativa = matriculas.find((m) => m.status === "ativa") ?? null;
+  const rows = (data ?? []) as unknown as {
+    id: string;
+    turma_id: string;
+    status: string;
+    turmas: { status: string } | null;
+  }[];
+  const matriculas = rows.map(({ id, turma_id, status }) => ({ id, turma_id, status }));
+  // "ativa" exige matrícula ativa E turma ativa (alinha com submeterCheckin).
+  const ativaRow = rows.find((m) => m.status === "ativa" && m.turmas?.status === "ativa") ?? null;
+  const ativa = ativaRow
+    ? { id: ativaRow.id, turma_id: ativaRow.turma_id, status: ativaRow.status }
+    : null;
   return { supabase, domainId, matriculas, ativa };
 }

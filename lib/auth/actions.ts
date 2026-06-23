@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { reivindicarEntitlements } from "@/lib/entitlements/claim";
+import { destinoPosLogin } from "@/lib/auth/destino";
 
 async function getOrigin() {
   const h = await headers();
@@ -19,7 +20,7 @@ export async function login(formData: FormData) {
   if (error) redirect(`/login?erro=${encodeURIComponent(error.message)}`);
   await reivindicarEntitlements(); // vincula compras/concessões pendentes por e-mail
   revalidatePath("/", "layout");
-  redirect("/perfil");
+  redirect(await destinoPosLogin());
 }
 
 export async function cadastrar(formData: FormData) {
@@ -30,7 +31,7 @@ export async function cadastrar(formData: FormData) {
   const { error } = await supabase.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: `${origin}/auth/confirm?next=/perfil` },
+    options: { emailRedirectTo: `${origin}/auth/confirm?next=/inicio` },
   });
   if (error) redirect(`/cadastro?erro=${encodeURIComponent(error.message)}`);
   redirect("/cadastro?ok=1");
@@ -53,7 +54,7 @@ export async function redefinirSenha(formData: FormData) {
   const { error } = await supabase.auth.updateUser({ password });
   if (error) redirect(`/redefinir?erro=${encodeURIComponent(error.message)}`);
   revalidatePath("/", "layout");
-  redirect("/perfil");
+  redirect(await destinoPosLogin());
 }
 
 export async function loginGoogle() {
@@ -61,7 +62,7 @@ export async function loginGoogle() {
   const supabase = await createServerSupabase();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: `${origin}/auth/callback?next=/perfil` },
+    options: { redirectTo: `${origin}/auth/callback?next=/inicio` },
   });
   if (error) redirect(`/login?erro=${encodeURIComponent(error.message)}`);
   if (data?.url) redirect(data.url);

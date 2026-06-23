@@ -71,7 +71,11 @@ export async function editarFase(formData: FormData) {
   const nome = String(formData.get("nome") ?? "").trim();
   const descricao = String(formData.get("descricao") ?? "").trim() || null;
   const back = `/admin/programas/${programaId}/fases`;
-  const { error } = await sb.from("programa_fases").update({ nome, descricao }).eq("id", id);
+  const { error } = await sb
+    .from("programa_fases")
+    .update({ nome, descricao })
+    .eq("id", id)
+    .eq("programa_id", programaId);
   if (error) redirect(`${back}?erro=${encodeURIComponent(mensagemAmigavel(error.message))}`);
   await audit("fase_editada", `fase:${id}`, { programa_id: programaId, nome });
   revalidatePath(back);
@@ -141,12 +145,26 @@ export async function editarDia(formData: FormData) {
   const programaId = String(formData.get("programa_id") ?? "");
   const numero = String(formData.get("numero") ?? "");
   const back = `/admin/programas/${programaId}/dias/${numero}`;
+
+  // fase_id deve pertencer ao MESMO programa (FK só garante existência)
+  const faseId = String(formData.get("fase_id") ?? "") || null;
+  if (faseId) {
+    const { data: faseOk } = await sb
+      .from("programa_fases")
+      .select("id")
+      .eq("id", faseId)
+      .eq("programa_id", programaId)
+      .maybeSingle();
+    if (!faseOk)
+      redirect(`${back}?erro=${encodeURIComponent("Fase inválida para este programa.")}`);
+  }
+
   const patch: Record<string, unknown> = {
     titulo: String(formData.get("titulo") ?? "").trim() || null,
     instrucoes: String(formData.get("instrucoes") ?? "").trim() || null,
     missao_titulo: String(formData.get("missao_titulo") ?? "").trim(),
     missao_descricao: String(formData.get("missao_descricao") ?? "").trim() || null,
-    fase_id: String(formData.get("fase_id") ?? "") || null,
+    fase_id: faseId,
     eh_marco: formData.get("eh_marco") === "on",
     marco_titulo: String(formData.get("marco_titulo") ?? "").trim() || null,
     marco_descricao: String(formData.get("marco_descricao") ?? "").trim() || null,
@@ -156,7 +174,11 @@ export async function editarDia(formData: FormData) {
   if (!travado && formData.get("missao_pontos") !== null) {
     patch.missao_pontos = Number(formData.get("missao_pontos"));
   }
-  const { error } = await sb.from("protocolo_dias").update(patch).eq("id", id);
+  const { error } = await sb
+    .from("protocolo_dias")
+    .update(patch)
+    .eq("id", id)
+    .eq("programa_id", programaId);
   if (error) redirect(`${back}?erro=${encodeURIComponent(mensagemAmigavel(error.message))}`);
   await audit("dia_editado", `dia:${id}`, { programa_id: programaId, numero });
   revalidatePath(back);

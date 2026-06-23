@@ -10,6 +10,11 @@ import { createServerSupabase } from "@/lib/supabase/server";
  * mesmo (matricula, dia_corrente) dentro do dia. Os triggers recalculam tudo.
  */
 export async function submeterCheckin(formData: FormData) {
+  // Volta para a tela de origem (dashboard ou /protocolo/[n]); só aceita path interno.
+  const retornoRaw = String(formData.get("retorno") ?? "/dashboard");
+  const retorno =
+    retornoRaw.startsWith("/") && !retornoRaw.startsWith("//") ? retornoRaw : "/dashboard";
+
   const supabase = await createServerSupabase();
   const {
     data: { user },
@@ -22,7 +27,7 @@ export async function submeterCheckin(formData: FormData) {
     .eq("auth_user_id", user.id)
     .maybeSingle();
   const domainId = (duRow as { id: string } | null)?.id;
-  if (!domainId) redirect("/dashboard?erro=sem_usuario");
+  if (!domainId) redirect(`${retorno}?erro=sem_usuario`);
 
   const { data: mRow } = await supabase
     .from("matriculas")
@@ -37,12 +42,12 @@ export async function submeterCheckin(formData: FormData) {
     turma_id: string;
     turmas: { programa_id: string; status: string } | null;
   } | null;
-  if (!m) redirect("/dashboard?erro=sem_matricula_ativa");
-  if (m!.turmas?.status !== "ativa") redirect("/dashboard?erro=turma_inativa");
+  if (!m) redirect(`${retorno}?erro=sem_matricula_ativa`);
+  if (m!.turmas?.status !== "ativa") redirect(`${retorno}?erro=turma_inativa`);
 
   const { data: diaData } = await supabase.rpc("dia_corrente_turma", { p_turma: m!.turma_id });
   const dia = Number(diaData);
-  if (!dia || dia < 1) redirect("/dashboard?erro=fora_da_janela");
+  if (!dia || dia < 1) redirect(`${retorno}?erro=fora_da_janela`);
 
   // upsert do check-in — SEMPRE no dia corrente
   const { data: ckRow, error: e1 } = await supabase
@@ -59,7 +64,7 @@ export async function submeterCheckin(formData: FormData) {
     )
     .select("id")
     .single();
-  if (e1) redirect(`/dashboard?erro=${encodeURIComponent(e1.message)}`);
+  if (e1) redirect(`${retorno}?erro=${encodeURIComponent(e1.message)}`);
   const checkinId = (ckRow as { id: string }).id;
 
   // sincroniza os 10 inegociáveis (cumprido conforme checkbox)
@@ -77,9 +82,11 @@ export async function submeterCheckin(formData: FormData) {
     const { error: e2 } = await supabase
       .from("checkin_habitos")
       .upsert(linhas, { onConflict: "checkin_id,habito_id" });
-    if (e2) redirect(`/dashboard?erro=${encodeURIComponent(e2.message)}`);
+    if (e2) redirect(`${retorno}?erro=${encodeURIComponent(e2.message)}`);
   }
 
   revalidatePath("/dashboard");
-  redirect("/dashboard?ok=checkin");
+  revalidatePath("/protocolo");
+  revalidatePath(retorno);
+  redirect(`${retorno}?ok=checkin`);
 }

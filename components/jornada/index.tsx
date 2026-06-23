@@ -57,6 +57,7 @@ export function CheckinForm({
   missaoTitulo,
   missaoCompleta,
   publico,
+  retorno = "/dashboard",
 }: {
   dia: number;
   podeOperar: boolean;
@@ -65,6 +66,7 @@ export function CheckinForm({
   missaoTitulo: string;
   missaoCompleta: boolean;
   publico: boolean;
+  retorno?: string;
 }) {
   if (!podeOperar) {
     return (
@@ -75,6 +77,7 @@ export function CheckinForm({
   }
   return (
     <form action={submeterCheckin} className="flex flex-col gap-2">
+      <input type="hidden" name="retorno" value={retorno} />
       <p className="text-sm text-subtle">Check-in do dia {dia}</p>
       {habitos.map((h) => (
         <label key={h.id} className="flex items-center gap-2 text-sm text-muted">

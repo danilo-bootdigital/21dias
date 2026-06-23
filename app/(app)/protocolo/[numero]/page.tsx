@@ -16,25 +16,29 @@ export default async function DiaProtocoloPage({
   const n = Number(numero);
 
   const ctx = await jornadaContexto();
-  if (!ctx || !ctx.ativa) {
+  // Matrícula de referência: ativa (operacional) OU a mais recente (modo leitura).
+  const ref = ctx ? (ctx.ativa ?? ctx.matriculas[0] ?? null) : null;
+  if (!ctx || !ref) {
     return (
       <div>
         <h1 className="font-display text-3xl font-semibold">Protocolo</h1>
-        <p className="mt-3 text-muted">Você não tem uma jornada ativa no momento.</p>
+        <p className="mt-3 text-muted">Você não tem uma jornada no momento.</p>
       </div>
     );
   }
-  const { supabase, ativa } = ctx;
+
+  const { supabase } = ctx;
 
   const { data: tRow } = await supabase
     .from("turmas")
     .select("programa_id, status")
-    .eq("id", ativa.turma_id)
+    .eq("id", ref.turma_id)
     .maybeSingle();
   const t = tRow as { programa_id: string; status: string } | null;
   if (!t || !Number.isFinite(n)) notFound();
+  const turmaAtiva = t!.status === "ativa";
 
-  const { data: diaData } = await supabase.rpc("dia_corrente_turma", { p_turma: ativa.turma_id });
+  const { data: diaData } = await supabase.rpc("dia_corrente_turma", { p_turma: ref.turma_id });
   const dc = Number(diaData);
 
   const voltar = (
@@ -43,7 +47,8 @@ export default async function DiaProtocoloPage({
     </Link>
   );
 
-  if (n > dc) {
+  // Dia futuro só é bloqueado em turma ATIVA; em histórico tudo até a duração é leitura.
+  if (turmaAtiva && n > dc) {
     return (
       <div>
         {voltar}
@@ -86,7 +91,8 @@ export default async function DiaProtocoloPage({
   const conteudos = (contData ?? []) as { tipo: string; titulo: string | null; corpo: string }[];
 
   const ehHoje = n === dc;
-  const podeOperar = ehHoje && t!.status === "ativa" && ativa.status === "ativa";
+  // Só opera (check-in) quando há jornada ATIVA operacional e é o dia corrente.
+  const podeOperar = !!ctx.ativa && ehHoje && turmaAtiva;
 
   const { data: habsRow } = await supabase
     .from("habitos_definicao")
@@ -98,7 +104,7 @@ export default async function DiaProtocoloPage({
   const { data: ckRow } = await supabase
     .from("checkins")
     .select("id, missao_completa, check_in_publico")
-    .eq("matricula_id", ativa.id)
+    .eq("matricula_id", ref.id)
     .eq("dia_numero", n)
     .maybeSingle();
   const ck = ckRow as { id: string; missao_completa: boolean; check_in_publico: boolean } | null;
@@ -133,7 +139,7 @@ export default async function DiaProtocoloPage({
       />
 
       <h2 className="mb-2 mt-6 text-sm uppercase tracking-wider text-subtle">Execução</h2>
-      {ehHoje ? (
+      {podeOperar ? (
         <CheckinForm
           dia={n}
           podeOperar={podeOperar}
@@ -142,6 +148,7 @@ export default async function DiaProtocoloPage({
           missaoTitulo={d!.missao_titulo}
           missaoCompleta={ck?.missao_completa ?? false}
           publico={ck?.check_in_publico ?? false}
+          retorno={`/protocolo/${n}`}
         />
       ) : ck ? (
         <p className="rounded-lg border border-emerald-900/60 bg-emerald-950/30 px-3 py-2 text-sm text-emerald-300">
