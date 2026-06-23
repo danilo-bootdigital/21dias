@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { audit } from "@/lib/admin/audit";
 import { mensagemAmigavel, turmaIniciada, pendenciasPublicacao } from "@/lib/admin/protocolo-data";
+import { clonarProgramaCompleto } from "@/lib/admin/clonar-core";
 
 // ---------------------------------------------------------------------------
 // FASE C / C1 — server actions de autoria do protocolo.
@@ -331,163 +332,20 @@ export async function clonarPrograma(formData: FormData) {
 
   const { data: origemRow } = await sb
     .from("programas")
-    .select("id, temporada_id, descricao, duracao_dias, is_publicado")
+    .select("id, is_publicado")
     .eq("id", origemId)
     .maybeSingle();
-  const origem = origemRow as {
-    id: string;
-    temporada_id: string;
-    descricao: string | null;
-    duracao_dias: number;
-    is_publicado: boolean;
-  } | null;
+  const origem = origemRow as { id: string; is_publicado: boolean } | null;
   if (!origem) redirect(`${back}?erro=${encodeURIComponent("Programa de origem não encontrado.")}`);
   if (!origem!.is_publicado)
     redirect(`${back}?erro=${encodeURIComponent("Só programas publicados podem ser clonados.")}`);
   if (!novoNome)
     redirect(`${back}?erro=${encodeURIComponent("Informe um nome para o novo programa.")}`);
 
-  // 1) novo programa (rascunho, sem turma → locks inativos)
-  const { data: novoRow, error: e0 } = await sb
-    .from("programas")
-    .insert({
-      temporada_id: origem!.temporada_id,
-      nome: novoNome,
-      descricao: origem!.descricao,
-      duracao_dias: origem!.duracao_dias,
-      is_publicado: false,
-    })
-    .select("id")
-    .single();
-  if (e0) redirect(`${back}?erro=${encodeURIComponent(mensagemAmigavel(e0.message))}`);
-  const novoId = (novoRow as { id: string }).id;
+  const res = await clonarProgramaCompleto(sb, origemId, novoNome);
+  if (!res.ok) redirect(`${back}?erro=${encodeURIComponent("Falha ao clonar: " + res.erro)}`);
 
-  try {
-    // 2) fases (mapa antigo -> novo)
-    const { data: fasesData } = await sb
-      .from("programa_fases")
-      .select("id, ordem, nome, descricao")
-      .eq("programa_id", origemId)
-      .order("ordem");
-    const fases = (fasesData ?? []) as {
-      id: string;
-      ordem: number;
-      nome: string;
-      descricao: string | null;
-    }[];
-    const mapaFase = new Map<string, string>();
-    for (const f of fases) {
-      const { data: nf, error } = await sb
-        .from("programa_fases")
-        .insert({ programa_id: novoId, ordem: f.ordem, nome: f.nome, descricao: f.descricao })
-        .select("id")
-        .single();
-      if (error) throw new Error(error.message);
-      mapaFase.set(f.id, (nf as { id: string }).id);
-    }
-
-    // 3) dias (remapeia fase_id; mapa antigo -> novo)
-    const { data: diasData } = await sb
-      .from("protocolo_dias")
-      .select(
-        "id, numero, fase_id, missao_titulo, missao_descricao, missao_pontos, titulo, instrucoes, eh_marco, marco_titulo, marco_descricao",
-      )
-      .eq("programa_id", origemId)
-      .order("numero");
-    const dias = (diasData ?? []) as {
-      id: string;
-      numero: number;
-      fase_id: string;
-      missao_titulo: string;
-      missao_descricao: string | null;
-      missao_pontos: number;
-      titulo: string | null;
-      instrucoes: string | null;
-      eh_marco: boolean;
-      marco_titulo: string | null;
-      marco_descricao: string | null;
-    }[];
-    const mapaDia = new Map<string, string>();
-    for (const d of dias) {
-      const { data: nd, error } = await sb
-        .from("protocolo_dias")
-        .insert({
-          programa_id: novoId,
-          numero: d.numero,
-          fase_id: mapaFase.get(d.fase_id),
-          missao_titulo: d.missao_titulo,
-          missao_descricao: d.missao_descricao,
-          missao_pontos: d.missao_pontos,
-          titulo: d.titulo,
-          instrucoes: d.instrucoes,
-          eh_marco: d.eh_marco,
-          marco_titulo: d.marco_titulo,
-          marco_descricao: d.marco_descricao,
-        })
-        .select("id")
-        .single();
-      if (error) throw new Error(error.message);
-      mapaDia.set(d.id, (nd as { id: string }).id);
-    }
-
-    // 4) conteúdos (remapeia dia_id)
-    const origemDiaIds = Array.from(mapaDia.keys());
-    if (origemDiaIds.length) {
-      const { data: contData } = await sb
-        .from("protocolo_conteudos")
-        .select("dia_id, ordem, tipo, titulo, corpo")
-        .in("dia_id", origemDiaIds);
-      const conts = (contData ?? []) as {
-        dia_id: string;
-        ordem: number;
-        tipo: string;
-        titulo: string | null;
-        corpo: string;
-      }[];
-      if (conts.length) {
-        const linhas = conts.map((c) => ({
-          dia_id: mapaDia.get(c.dia_id),
-          ordem: c.ordem,
-          tipo: c.tipo,
-          titulo: c.titulo,
-          corpo: c.corpo,
-        }));
-        const { error } = await sb.from("protocolo_conteudos").insert(linhas);
-        if (error) throw new Error(error.message);
-      }
-    }
-
-    // 5) hábitos
-    const { data: habData } = await sb
-      .from("habitos_definicao")
-      .select("nome, descricao, ordem, pontos")
-      .eq("programa_id", origemId)
-      .order("ordem");
-    const habs = (habData ?? []) as {
-      nome: string;
-      descricao: string | null;
-      ordem: number;
-      pontos: number;
-    }[];
-    if (habs.length) {
-      const linhas = habs.map((h) => ({
-        programa_id: novoId,
-        nome: h.nome,
-        descricao: h.descricao,
-        ordem: h.ordem,
-        pontos: h.pontos,
-      }));
-      const { error } = await sb.from("habitos_definicao").insert(linhas);
-      if (error) throw new Error(error.message);
-    }
-  } catch (e) {
-    // cleanup: remove o programa parcial (on delete cascade nas filhas)
-    await sb.from("programas").delete().eq("id", novoId);
-    const msg = e instanceof Error ? e.message : "Falha ao clonar.";
-    redirect(`${back}?erro=${encodeURIComponent("Falha ao clonar: " + mensagemAmigavel(msg))}`);
-  }
-
-  await audit("programa_clonado", `programa:${novoId}`, { origem: origemId, nome: novoNome });
+  await audit("programa_clonado", `programa:${res.novoId}`, { origem: origemId, nome: novoNome });
   revalidatePath("/admin/programas");
-  redirect(`/admin/programas/${novoId}?ok=clonado`);
+  redirect(`/admin/programas/${res.novoId}?ok=clonado`);
 }

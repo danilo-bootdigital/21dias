@@ -28,6 +28,7 @@ const btnDanger =
 export function SubNavProtocolo({ programaId, ativo }: { programaId: string; ativo: string }) {
   const itens: [string, string][] = [
     ["", "Visão Geral"],
+    ["editar", "Editar"],
     ["fases", "Fases"],
     ["dias", "Dias"],
     ["publicacao", "Publicação"],
