@@ -1,0 +1,8 @@
+node_modules
+.claude
+.next
+out
+build
+coverage
+*.log
+db/migrations
