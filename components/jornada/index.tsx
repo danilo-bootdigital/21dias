@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { submeterCheckin } from "@/lib/jornada/checkin";
+import { MedalhaBadge } from "@/components/gamificacao";
 
 export function IndicadoresHeader({
   streak,
@@ -22,6 +23,9 @@ export function IndicadoresHeader({
       <div className={card}>
         <p className="text-3xl font-semibold text-text">{indice}%</p>
         <p className="mt-1 text-sm text-subtle">Disciplina</p>
+        <div className="mt-2 flex justify-center">
+          <MedalhaBadge percentual={indice} />
+        </div>
       </div>
       <div className={card}>
         <p className="text-3xl font-semibold text-text">{pontos}</p>

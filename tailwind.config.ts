@@ -7,7 +7,7 @@ import type { Config } from "tailwindcss";
  *   #C8A45D dourado (accent)  #B89146 dourado escuro (accent-strong)
  */
 const config: Config = {
-  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
+  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./lib/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
