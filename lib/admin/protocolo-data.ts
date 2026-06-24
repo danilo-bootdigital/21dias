@@ -15,6 +15,7 @@ export type DiaResumo = {
   fase_nome: string | null;
   missao_titulo: string;
   eh_marco: boolean;
+  ativo: boolean;
   conteudos: number;
 };
 export type Conteudo = {
@@ -23,6 +24,29 @@ export type Conteudo = {
   tipo: string;
   titulo: string | null;
   corpo: string;
+};
+export type Protocolo = {
+  id: string;
+  numero: number;
+  fase_id: string;
+  missao_titulo: string;
+  missao_descricao: string | null;
+  missao_pontos: number;
+  titulo: string | null;
+  instrucoes: string | null;
+  protocolo_descricao: string | null;
+  protocolo_ativo: boolean;
+  eh_marco: boolean;
+  marco_titulo: string | null;
+  marco_descricao: string | null;
+};
+export type CheckinItem = { id: string; ordem: number; texto: string };
+export type CampoImagem = {
+  slot: number;
+  ativo: boolean;
+  titulo: string | null;
+  instrucao: string | null;
+  obrigatorio: boolean;
 };
 
 export async function obterPrograma(id: string) {
@@ -56,7 +80,9 @@ export async function listarDias(programaId: string): Promise<DiaResumo[]> {
   const sb = await createServerSupabase();
   const { data } = await sb
     .from("protocolo_dias")
-    .select("id, numero, missao_titulo, eh_marco, programa_fases(nome), protocolo_conteudos(count)")
+    .select(
+      "id, numero, missao_titulo, eh_marco, protocolo_ativo, programa_fases(nome), protocolo_conteudos(count)",
+    )
     .eq("programa_id", programaId)
     .order("numero");
   const rows = (data ?? []) as unknown as {
@@ -64,6 +90,7 @@ export async function listarDias(programaId: string): Promise<DiaResumo[]> {
     numero: number;
     missao_titulo: string;
     eh_marco: boolean;
+    protocolo_ativo: boolean;
     programa_fases: { nome: string } | null;
     protocolo_conteudos: { count: number }[];
   }[];
@@ -73,8 +100,69 @@ export async function listarDias(programaId: string): Promise<DiaResumo[]> {
     fase_nome: r.programa_fases?.nome ?? null,
     missao_titulo: r.missao_titulo,
     eh_marco: r.eh_marco,
+    ativo: r.protocolo_ativo,
     conteudos: r.protocolo_conteudos?.[0]?.count ?? 0,
   }));
+}
+
+/** Protocolo (dia) por id, garantindo que pertence ao programa. */
+export async function obterProtocoloPorId(
+  programaId: string,
+  protocoloId: string,
+): Promise<Protocolo | null> {
+  const sb = await createServerSupabase();
+  const { data } = await sb
+    .from("protocolo_dias")
+    .select(
+      "id, numero, fase_id, missao_titulo, missao_descricao, missao_pontos, titulo, instrucoes, protocolo_descricao, protocolo_ativo, eh_marco, marco_titulo, marco_descricao",
+    )
+    .eq("id", protocoloId)
+    .eq("programa_id", programaId)
+    .maybeSingle();
+  return data as Protocolo | null;
+}
+
+/** Próximo número de dia disponível para o programa (para o cadastro novo). */
+export async function proximoNumeroDia(programaId: string): Promise<number> {
+  const sb = await createServerSupabase();
+  const { data } = await sb
+    .from("protocolo_dias")
+    .select("numero")
+    .eq("programa_id", programaId)
+    .order("numero", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return ((data as { numero: number } | null)?.numero ?? 0) + 1;
+}
+
+export async function listarCheckinItens(diaId: string): Promise<CheckinItem[]> {
+  const sb = await createServerSupabase();
+  const { data } = await sb
+    .from("protocolo_checkin_itens")
+    .select("id, ordem, texto")
+    .eq("dia_id", diaId)
+    .order("ordem");
+  return (data ?? []) as CheckinItem[];
+}
+
+/** Sempre devolve os 3 slots (preenchendo defaults para os ausentes). */
+export async function listarCamposImagem(diaId: string): Promise<CampoImagem[]> {
+  const sb = await createServerSupabase();
+  const { data } = await sb
+    .from("protocolo_imagem_campos")
+    .select("slot, ativo, titulo, instrucao, obrigatorio")
+    .eq("dia_id", diaId);
+  const rows = (data ?? []) as CampoImagem[];
+  return [1, 2, 3].map(
+    (slot) =>
+      rows.find((r) => r.slot === slot) ?? {
+        slot,
+        ativo: false,
+        titulo: null,
+        instrucao: null,
+        obrigatorio: false,
+      },
+  );
 }
 
 export async function obterDia(programaId: string, numero: number) {

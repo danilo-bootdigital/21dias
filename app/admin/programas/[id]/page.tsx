@@ -8,7 +8,7 @@ import {
   statusPrograma,
 } from "@/lib/admin/programas-data";
 import { PageHeader, Aviso } from "@/components/admin/ui";
-import { SubNavProtocolo, LockBanner } from "@/components/admin/protocolo";
+import { SubNavProtocolo, LockBanner, InserirProtocoloBtn } from "@/components/admin/protocolo";
 import { ProgramaStatusBadge } from "@/components/admin/programas-ui";
 
 function Stat({ label, valor }: { label: string; valor: string | number }) {
@@ -78,6 +78,7 @@ export default async function VisaoGeralPage({
       </div>
 
       <div className="flex flex-wrap gap-3">
+        <InserirProtocoloBtn programaId={id} travado={travado} />
         <Link
           href={`/admin/programas/${id}/editar`}
           className="rounded-lg bg-gold px-4 py-2 text-sm font-medium text-ground transition hover:bg-gold-strong"
