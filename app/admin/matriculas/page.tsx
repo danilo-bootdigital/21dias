@@ -1,9 +1,13 @@
+import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { formCancelar, formReativar, formTransferir } from "@/lib/admin/forms";
 import { PageHeader, Aviso, StatusBadge, td, th } from "@/components/admin/ui";
 
 const BACK = "/admin/matriculas";
 const FILTROS = ["todos", "ativa", "concluida", "cancelada"];
+const OK_MSG: Record<string, string> = {
+  matricula_criada: "Matrícula criada com sucesso.",
+};
 
 export default async function MatriculasPage({
   searchParams,
@@ -42,8 +46,18 @@ export default async function MatriculasPage({
 
   return (
     <div>
-      <PageHeader title="Matrículas" />
-      <Aviso ok={ok} erro={erro} />
+      <PageHeader
+        title="Matrículas"
+        action={
+          <Link
+            href="/admin/matriculas/nova"
+            className="rounded-lg bg-gold px-4 py-2 text-sm font-medium text-ground transition hover:bg-gold-strong"
+          >
+            + Nova matrícula
+          </Link>
+        }
+      />
+      <Aviso ok={ok ? (OK_MSG[ok] ?? ok) : undefined} erro={erro} />
 
       <div className="mb-4 flex gap-2 text-sm">
         {FILTROS.map((f) => (
