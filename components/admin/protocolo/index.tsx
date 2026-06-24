@@ -12,9 +12,24 @@ import {
   publicarPrograma,
   despublicarPrograma,
   clonarPrograma,
+  criarProtocolo,
+  editarProtocolo,
+  excluirProtocolo,
+  criarCheckinItem,
+  editarCheckinItem,
+  excluirCheckinItem,
+  reordenarCheckinItens,
+  salvarCampoImagem,
 } from "@/lib/admin/protocolo";
 import { td, th } from "@/components/admin/ui";
-import type { Fase, DiaResumo, Conteudo } from "@/lib/admin/protocolo-data";
+import type {
+  Fase,
+  DiaResumo,
+  Conteudo,
+  Protocolo,
+  CheckinItem,
+  CampoImagem,
+} from "@/lib/admin/protocolo-data";
 
 const campo =
   "w-full rounded-lg border border-border bg-ground px-3 py-2 text-text outline-none focus:border-gold";
@@ -30,7 +45,7 @@ export function SubNavProtocolo({ programaId, ativo }: { programaId: string; ati
     ["", "Visão Geral"],
     ["editar", "Editar"],
     ["fases", "Fases"],
-    ["dias", "Dias"],
+    ["dias", "Protocolos"],
     ["publicacao", "Publicação"],
     ["clonar", "Clonar"],
   ];
@@ -165,12 +180,40 @@ export function FaseList({ programaId, fases }: { programaId: string; fases: Fas
   );
 }
 
+export function InserirProtocoloBtn({
+  programaId,
+  travado,
+}: {
+  programaId: string;
+  travado: boolean;
+}) {
+  if (travado) {
+    return (
+      <span
+        className="cursor-not-allowed rounded-lg border border-border px-4 py-2 text-sm text-subtle opacity-60"
+        title="Turma já iniciada — não é possível inserir novos protocolos."
+      >
+        + Inserir Protocolo
+      </span>
+    );
+  }
+  return (
+    <Link
+      href={`/admin/programas/${programaId}/protocolos/novo`}
+      className="rounded-lg bg-gold px-4 py-2 text-sm font-medium text-ground transition hover:bg-gold-strong"
+    >
+      + Inserir Protocolo
+    </Link>
+  );
+}
+
 export function DiaList({ programaId, dias }: { programaId: string; dias: DiaResumo[] }) {
   return (
     <table className="w-full border-collapse">
       <thead>
         <tr>
           <th className={th}>#</th>
+          <th className={th}>Status</th>
           <th className={th}>Fase</th>
           <th className={th}>Missão</th>
           <th className={th}>Conteúdos</th>
@@ -182,6 +225,13 @@ export function DiaList({ programaId, dias }: { programaId: string; dias: DiaRes
         {dias.map((d) => (
           <tr key={d.id}>
             <td className={td}>{d.numero}</td>
+            <td className={td}>
+              {d.ativo ? (
+                <span className="text-emerald-300">Ativo</span>
+              ) : (
+                <span className="text-subtle">Inativo</span>
+              )}
+            </td>
             <td className={td}>{d.fase_nome ?? "—"}</td>
             <td className={td}>{d.missao_titulo}</td>
             <td className={td}>
@@ -190,7 +240,7 @@ export function DiaList({ programaId, dias }: { programaId: string; dias: DiaRes
             <td className={td}>{d.eh_marco ? "★" : ""}</td>
             <td className={td}>
               <Link
-                href={`/admin/programas/${programaId}/dias/${d.numero}`}
+                href={`/admin/programas/${programaId}/protocolos/${d.id}/editar`}
                 className="text-gold hover:underline"
               >
                 Editar
@@ -200,8 +250,8 @@ export function DiaList({ programaId, dias }: { programaId: string; dias: DiaRes
         ))}
         {dias.length === 0 ? (
           <tr>
-            <td className={td} colSpan={6}>
-              Nenhum dia cadastrado.
+            <td className={td} colSpan={7}>
+              Nenhum protocolo cadastrado. Use “Inserir Protocolo” para criar o primeiro.
             </td>
           </tr>
         ) : null}
@@ -590,5 +640,291 @@ export function ClonarForm({
         Duplicar programa
       </button>
     </form>
+  );
+}
+
+// ===================== PROTOCOLO — cadastro (FASE D) ========================
+
+/** Form de dados do protocolo (cria quando `protocolo` é nulo; senão edita). */
+export function ProtocoloForm({
+  programaId,
+  fases,
+  travado,
+  protocolo,
+  proximoNumero,
+}: {
+  programaId: string;
+  fases: Fase[];
+  travado: boolean;
+  protocolo?: Protocolo | null;
+  proximoNumero?: number;
+}) {
+  const novo = !protocolo;
+  const ativo = protocolo?.protocolo_ativo ?? true;
+  return (
+    <form action={novo ? criarProtocolo : editarProtocolo} className="flex flex-col gap-4">
+      <input type="hidden" name="programa_id" value={programaId} />
+      {!novo ? <input type="hidden" name="id" value={protocolo!.id} /> : null}
+
+      <div className="grid grid-cols-3 gap-4">
+        <label className="flex flex-col gap-1 text-sm text-muted">
+          Dia (número)
+          {novo ? (
+            <input
+              name="numero"
+              type="number"
+              min="1"
+              required
+              defaultValue={proximoNumero ?? 1}
+              className={campo}
+            />
+          ) : (
+            <input value={protocolo!.numero} readOnly className={`${campo} opacity-60`} />
+          )}
+        </label>
+        <label className="flex flex-col gap-1 text-sm text-muted">
+          Fase
+          <select
+            name="fase_id"
+            defaultValue={protocolo?.fase_id ?? fases[0]?.id}
+            className={campo}
+          >
+            {fases.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.ordem}. {f.nome}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm text-muted">
+          Status
+          <select name="protocolo_ativo" defaultValue={ativo ? "on" : ""} className={campo}>
+            <option value="on">Ativo</option>
+            <option value="">Inativo</option>
+          </select>
+        </label>
+      </div>
+
+      <label className="flex flex-col gap-1 text-sm text-muted">
+        Título
+        <input name="titulo" defaultValue={protocolo?.titulo ?? ""} className={campo} />
+      </label>
+      <label className="flex flex-col gap-1 text-sm text-muted">
+        Descrição
+        <textarea
+          name="protocolo_descricao"
+          defaultValue={protocolo?.protocolo_descricao ?? ""}
+          rows={2}
+          className={campo}
+        />
+      </label>
+
+      <fieldset className="rounded-xl border border-border bg-surface p-4">
+        <legend className="px-1 text-xs uppercase tracking-wider text-subtle">Missão do Dia</legend>
+        <div className="grid grid-cols-2 gap-4">
+          <label className="flex flex-col gap-1 text-sm text-muted">
+            Título da missão
+            <input
+              name="missao_titulo"
+              required
+              defaultValue={protocolo?.missao_titulo ?? ""}
+              className={campo}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-muted">
+            Pontuação
+            <input
+              name="missao_pontos"
+              type="number"
+              min="0"
+              defaultValue={protocolo?.missao_pontos ?? 40}
+              disabled={!novo && travado}
+              className={`${campo} ${!novo && travado ? "opacity-50" : ""}`}
+            />
+            {!novo && travado ? (
+              <span className="text-xs text-amber-300">Travado (turma iniciada)</span>
+            ) : null}
+          </label>
+        </div>
+        <label className="mt-3 flex flex-col gap-1 text-sm text-muted">
+          Descrição da missão
+          <textarea
+            name="missao_descricao"
+            defaultValue={protocolo?.missao_descricao ?? ""}
+            rows={2}
+            className={campo}
+          />
+        </label>
+      </fieldset>
+
+      <fieldset className="rounded-xl border border-border bg-surface p-4">
+        <legend className="px-1 text-xs uppercase tracking-wider text-subtle">Execução</legend>
+        <label className="flex flex-col gap-1 text-sm text-muted">
+          Descrição da execução
+          <textarea
+            name="instrucoes"
+            defaultValue={protocolo?.instrucoes ?? ""}
+            rows={3}
+            className={campo}
+          />
+        </label>
+      </fieldset>
+
+      {!novo ? (
+        <MarcoFields
+          ehMarco={protocolo!.eh_marco}
+          marcoTitulo={protocolo!.marco_titulo}
+          marcoDescricao={protocolo!.marco_descricao}
+        />
+      ) : null}
+
+      <button type="submit" className={`${btn} self-start`}>
+        {novo ? "Criar protocolo" : "Salvar protocolo"}
+      </button>
+    </form>
+  );
+}
+
+export function ExcluirProtocoloBtn({
+  programaId,
+  protocoloId,
+}: {
+  programaId: string;
+  protocoloId: string;
+}) {
+  return (
+    <form action={excluirProtocolo}>
+      <input type="hidden" name="programa_id" value={programaId} />
+      <input type="hidden" name="id" value={protocoloId} />
+      <button className={btnDanger}>Excluir protocolo</button>
+    </form>
+  );
+}
+
+// ----------------------------- CHECK-IN DO DIA -----------------------------
+
+export function CheckinItensEditor({
+  programaId,
+  protocoloId,
+  itens,
+}: {
+  programaId: string;
+  protocoloId: string;
+  itens: CheckinItem[];
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <form
+        action={criarCheckinItem}
+        className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-surface p-4"
+      >
+        <input type="hidden" name="programa_id" value={programaId} />
+        <input type="hidden" name="protocolo_id" value={protocoloId} />
+        <label className="flex flex-1 flex-col gap-1 text-sm text-muted">
+          Texto da tarefa
+          <input name="texto" required placeholder="Ex.: Bebi 3 litros de água" className={campo} />
+        </label>
+        <button type="submit" className={btn}>
+          Adicionar item
+        </button>
+      </form>
+
+      {itens.length === 0 ? (
+        <p className="text-muted">Nenhum item no check-in deste dia.</p>
+      ) : (
+        itens.map((it) => (
+          <div key={it.id} className="rounded-xl border border-border bg-surface p-4">
+            <form action={editarCheckinItem} className="flex flex-wrap items-end gap-3">
+              <input type="hidden" name="id" value={it.id} />
+              <input type="hidden" name="programa_id" value={programaId} />
+              <input type="hidden" name="protocolo_id" value={protocoloId} />
+              <span className="self-center rounded-full border border-border px-2 py-0.5 text-xs text-subtle">
+                #{it.ordem}
+              </span>
+              <label className="flex flex-1 flex-col gap-1 text-sm text-muted">
+                Texto
+                <input name="texto" defaultValue={it.texto} className={campo} />
+              </label>
+              <button type="submit" className={btnGhost}>
+                Salvar
+              </button>
+            </form>
+            <div className="mt-2 flex gap-2">
+              <form action={reordenarCheckinItens}>
+                <input type="hidden" name="id" value={it.id} />
+                <input type="hidden" name="programa_id" value={programaId} />
+                <input type="hidden" name="protocolo_id" value={protocoloId} />
+                <input type="hidden" name="direcao" value="cima" />
+                <button className={btnGhost}>↑ subir</button>
+              </form>
+              <form action={reordenarCheckinItens}>
+                <input type="hidden" name="id" value={it.id} />
+                <input type="hidden" name="programa_id" value={programaId} />
+                <input type="hidden" name="protocolo_id" value={protocoloId} />
+                <input type="hidden" name="direcao" value="baixo" />
+                <button className={btnGhost}>↓ descer</button>
+              </form>
+              <form action={excluirCheckinItem}>
+                <input type="hidden" name="id" value={it.id} />
+                <input type="hidden" name="programa_id" value={programaId} />
+                <input type="hidden" name="protocolo_id" value={protocoloId} />
+                <button className={btnDanger}>Excluir</button>
+              </form>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ----------------------------- CAMPOS DE IMAGEM ----------------------------
+
+export function CamposImagemEditor({
+  programaId,
+  protocoloId,
+  campos,
+}: {
+  programaId: string;
+  protocoloId: string;
+  campos: CampoImagem[];
+}) {
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      {campos.map((c) => (
+        <form
+          key={c.slot}
+          action={salvarCampoImagem}
+          className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4"
+        >
+          <input type="hidden" name="programa_id" value={programaId} />
+          <input type="hidden" name="protocolo_id" value={protocoloId} />
+          <input type="hidden" name="slot" value={c.slot} />
+          <p className="text-sm font-medium text-text">Campo de Imagem {c.slot}</p>
+          <label className="flex items-center gap-2 text-sm text-muted">
+            <input type="checkbox" name="ativo" defaultChecked={c.ativo} /> Ativo
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-muted">
+            Título
+            <input
+              name="titulo"
+              defaultValue={c.titulo ?? ""}
+              placeholder={`Foto ${c.slot}`}
+              className={campo}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-muted">
+            Instrução / placeholder
+            <input name="instrucao" defaultValue={c.instrucao ?? ""} className={campo} />
+          </label>
+          <label className="flex items-center gap-2 text-sm text-muted">
+            <input type="checkbox" name="obrigatorio" defaultChecked={c.obrigatorio} /> Obrigatório
+          </label>
+          <button type="submit" className={`${btnGhost} self-start`}>
+            Salvar campo
+          </button>
+        </form>
+      ))}
+    </div>
   );
 }

@@ -58,6 +58,8 @@ export function CheckinForm({
   podeOperar,
   habitos,
   cumpridos,
+  itens = [],
+  itensMarcados = [],
   missaoTitulo,
   missaoCompleta,
   publico,
@@ -67,6 +69,8 @@ export function CheckinForm({
   podeOperar: boolean;
   habitos: { id: string; nome: string }[];
   cumpridos: string[];
+  itens?: { id: string; texto: string }[];
+  itensMarcados?: string[];
   missaoTitulo: string;
   missaoCompleta: boolean;
   publico: boolean;
@@ -83,6 +87,26 @@ export function CheckinForm({
     <form action={submeterCheckin} className="flex flex-col gap-2">
       <input type="hidden" name="retorno" value={retorno} />
       <p className="text-sm text-subtle">Check-in do dia {dia}</p>
+      {itens.length ? (
+        <fieldset className="rounded-lg border border-border bg-surface p-3">
+          <legend className="px-1 text-xs uppercase tracking-wider text-subtle">
+            Check-in do Dia
+          </legend>
+          {itens.map((it) => (
+            <label key={it.id} className="flex items-center gap-2 text-sm text-muted">
+              <input
+                type="checkbox"
+                name={`item_${it.id}`}
+                defaultChecked={itensMarcados.includes(it.id)}
+              />
+              {it.texto}
+            </label>
+          ))}
+        </fieldset>
+      ) : null}
+      {habitos.length ? (
+        <p className="mt-1 text-xs uppercase tracking-wider text-subtle">Inegociáveis</p>
+      ) : null}
       {habitos.map((h) => (
         <label key={h.id} className="flex items-center gap-2 text-sm text-muted">
           <input
@@ -336,6 +360,7 @@ function DiaConteudoBloco({
 
 export function DiaProtocoloView({
   titulo,
+  descricao = null,
   instrucoes,
   missaoTitulo,
   missaoDescricao,
@@ -346,6 +371,7 @@ export function DiaProtocoloView({
   conteudos,
 }: {
   titulo: string | null;
+  descricao?: string | null;
   instrucoes: string | null;
   missaoTitulo: string;
   missaoDescricao: string | null;
@@ -365,8 +391,14 @@ export function DiaProtocoloView({
         </div>
       ) : null}
       {titulo ? <h2 className="font-display text-xl font-semibold">{titulo}</h2> : null}
-      {instrucoes ? <p className="whitespace-pre-line text-muted">{instrucoes}</p> : null}
+      {descricao ? <p className="whitespace-pre-line text-muted">{descricao}</p> : null}
       <MissaoCard titulo={missaoTitulo} descricao={missaoDescricao} pontos={missaoPontos} />
+      {instrucoes ? (
+        <div>
+          <h3 className="mb-1 text-sm uppercase tracking-wider text-subtle">Execução</h3>
+          <p className="whitespace-pre-line text-muted">{instrucoes}</p>
+        </div>
+      ) : null}
       {conteudos.length ? (
         <div className="flex flex-col gap-3">
           {conteudos.map((c, i) => (

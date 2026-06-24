@@ -85,6 +85,33 @@ export async function submeterCheckin(formData: FormData) {
     if (e2) redirect(`${retorno}?erro=${encodeURIComponent(e2.message)}`);
   }
 
+  // Check-in do Dia (checklist por dia, SEM pontuação). Aditivo: não interfere
+  // em hábitos/missão/scoring. Marcações ficam em protocolo_checkin_respostas.
+  const { data: diaRow } = await supabase
+    .from("protocolo_dias")
+    .select("id")
+    .eq("programa_id", m!.turmas!.programa_id)
+    .eq("numero", dia)
+    .maybeSingle();
+  const diaId = (diaRow as { id: string } | null)?.id;
+  if (diaId) {
+    const { data: itensRows } = await supabase
+      .from("protocolo_checkin_itens")
+      .select("id")
+      .eq("dia_id", diaId);
+    const itens = (itensRows ?? []) as { id: string }[];
+    if (itens.length) {
+      const respostas = itens.map((it) => ({
+        checkin_id: checkinId,
+        item_id: it.id,
+        marcado: formData.get(`item_${it.id}`) === "on",
+      }));
+      await supabase
+        .from("protocolo_checkin_respostas")
+        .upsert(respostas, { onConflict: "checkin_id,item_id" });
+    }
+  }
+
   revalidatePath("/dashboard");
   revalidatePath("/protocolo");
   revalidatePath(retorno);

@@ -291,6 +291,236 @@ export async function reordenarConteudos(formData: FormData) {
   redirect(`${back}?ok=conteudo_reordenado`);
 }
 
+// ===================== PROTOCOLO (cadastro — FASE D) =======================
+// "Protocolo" = o conteúdo de um dia (protocolo_dias). As ações abaixo
+// respeitam os locks 0010 (insert/delete só antes da turma iniciar; pontuação
+// travada após início). Checklist e campos de imagem são novos e não pontuam.
+
+function editorBack(programaId: string, protocoloId: string) {
+  return `/admin/programas/${programaId}/protocolos/${protocoloId}/editar`;
+}
+
+async function validarFaseDoPrograma(
+  sb: Awaited<ReturnType<typeof createServerSupabase>>,
+  programaId: string,
+  faseId: string,
+): Promise<boolean> {
+  const { data } = await sb
+    .from("programa_fases")
+    .select("id")
+    .eq("id", faseId)
+    .eq("programa_id", programaId)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+export async function criarProtocolo(formData: FormData) {
+  const sb = await gateAdmin();
+  const programaId = String(formData.get("programa_id") ?? "");
+  const back = `/admin/programas/${programaId}/protocolos/novo`;
+
+  const numero = Number(formData.get("numero"));
+  if (!Number.isFinite(numero) || numero < 1)
+    redirect(`${back}?erro=${encodeURIComponent("Informe um número de dia válido (≥ 1).")}`);
+
+  const faseId = String(formData.get("fase_id") ?? "");
+  if (!faseId || !(await validarFaseDoPrograma(sb, programaId, faseId)))
+    redirect(`${back}?erro=${encodeURIComponent("Selecione uma fase válida para este programa.")}`);
+
+  const missaoTitulo = String(formData.get("missao_titulo") ?? "").trim();
+  if (!missaoTitulo)
+    redirect(`${back}?erro=${encodeURIComponent("O título da missão é obrigatório.")}`);
+
+  const pontosRaw = Number(formData.get("missao_pontos"));
+  const missaoPontos = Number.isFinite(pontosRaw) && pontosRaw >= 0 ? pontosRaw : 40;
+
+  const { data, error } = await sb
+    .from("protocolo_dias")
+    .insert({
+      programa_id: programaId,
+      numero,
+      fase_id: faseId,
+      titulo: String(formData.get("titulo") ?? "").trim() || null,
+      protocolo_descricao: String(formData.get("protocolo_descricao") ?? "").trim() || null,
+      instrucoes: String(formData.get("instrucoes") ?? "").trim() || null,
+      missao_titulo: missaoTitulo,
+      missao_descricao: String(formData.get("missao_descricao") ?? "").trim() || null,
+      missao_pontos: missaoPontos,
+      protocolo_ativo: formData.get("protocolo_ativo") === "on",
+    })
+    .select("id")
+    .single();
+  if (error) redirect(`${back}?erro=${encodeURIComponent(mensagemAmigavel(error.message))}`);
+  const id = (data as { id: string }).id;
+  await audit("protocolo_criado", `dia:${id}`, { programa_id: programaId, numero });
+  revalidatePath(`/admin/programas/${programaId}/dias`);
+  redirect(`${editorBack(programaId, id)}?ok=protocolo_criado`);
+}
+
+export async function editarProtocolo(formData: FormData) {
+  const sb = await gateAdmin();
+  const id = String(formData.get("id") ?? "");
+  const programaId = String(formData.get("programa_id") ?? "");
+  const back = editorBack(programaId, id);
+
+  const faseId = String(formData.get("fase_id") ?? "") || null;
+  if (faseId && !(await validarFaseDoPrograma(sb, programaId, faseId)))
+    redirect(`${back}?erro=${encodeURIComponent("Fase inválida para este programa.")}`);
+
+  const patch: Record<string, unknown> = {
+    titulo: String(formData.get("titulo") ?? "").trim() || null,
+    protocolo_descricao: String(formData.get("protocolo_descricao") ?? "").trim() || null,
+    instrucoes: String(formData.get("instrucoes") ?? "").trim() || null,
+    missao_titulo: String(formData.get("missao_titulo") ?? "").trim(),
+    missao_descricao: String(formData.get("missao_descricao") ?? "").trim() || null,
+    fase_id: faseId,
+    protocolo_ativo: formData.get("protocolo_ativo") === "on",
+    eh_marco: formData.get("eh_marco") === "on",
+    marco_titulo: String(formData.get("marco_titulo") ?? "").trim() || null,
+    marco_descricao: String(formData.get("marco_descricao") ?? "").trim() || null,
+  };
+  const travado = await turmaIniciada(programaId);
+  if (!travado && formData.get("missao_pontos") !== null) {
+    patch.missao_pontos = Number(formData.get("missao_pontos"));
+  }
+  const { error } = await sb
+    .from("protocolo_dias")
+    .update(patch)
+    .eq("id", id)
+    .eq("programa_id", programaId);
+  if (error) redirect(`${back}?erro=${encodeURIComponent(mensagemAmigavel(error.message))}`);
+  await audit("protocolo_editado", `dia:${id}`, { programa_id: programaId });
+  revalidatePath(back);
+  redirect(`${back}?ok=protocolo_editado`);
+}
+
+export async function excluirProtocolo(formData: FormData) {
+  const sb = await gateAdmin();
+  const id = String(formData.get("id") ?? "");
+  const programaId = String(formData.get("programa_id") ?? "");
+  const back = `/admin/programas/${programaId}/dias`;
+  const { error } = await sb
+    .from("protocolo_dias")
+    .delete()
+    .eq("id", id)
+    .eq("programa_id", programaId);
+  if (error)
+    redirect(
+      `${editorBack(programaId, id)}?erro=${encodeURIComponent(mensagemAmigavel(error.message))}`,
+    );
+  await audit("protocolo_excluido", `dia:${id}`, { programa_id: programaId });
+  revalidatePath(back);
+  redirect(`${back}?ok=protocolo_excluido`);
+}
+
+// ----------------------------- CHECK-IN DO DIA -----------------------------
+
+export async function criarCheckinItem(formData: FormData) {
+  const sb = await gateAdmin();
+  const programaId = String(formData.get("programa_id") ?? "");
+  const protocoloId = String(formData.get("protocolo_id") ?? "");
+  const texto = String(formData.get("texto") ?? "").trim();
+  const back = editorBack(programaId, protocoloId);
+  if (!texto) redirect(`${back}?erro=${encodeURIComponent("Informe o texto da tarefa.")}`);
+  const { data: maxRow } = await sb
+    .from("protocolo_checkin_itens")
+    .select("ordem")
+    .eq("dia_id", protocoloId)
+    .order("ordem", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const ordem = ((maxRow as { ordem: number } | null)?.ordem ?? 0) + 1;
+  const { error } = await sb
+    .from("protocolo_checkin_itens")
+    .insert({ dia_id: protocoloId, texto, ordem });
+  if (error) redirect(`${back}?erro=${encodeURIComponent(mensagemAmigavel(error.message))}`);
+  await audit("checkin_item_criado", `dia:${protocoloId}`, { programa_id: programaId });
+  revalidatePath(back);
+  redirect(`${back}?ok=item_criado`);
+}
+
+export async function editarCheckinItem(formData: FormData) {
+  const sb = await gateAdmin();
+  const id = String(formData.get("id") ?? "");
+  const programaId = String(formData.get("programa_id") ?? "");
+  const protocoloId = String(formData.get("protocolo_id") ?? "");
+  const texto = String(formData.get("texto") ?? "").trim();
+  const back = editorBack(programaId, protocoloId);
+  if (!texto) redirect(`${back}?erro=${encodeURIComponent("Informe o texto da tarefa.")}`);
+  const { error } = await sb.from("protocolo_checkin_itens").update({ texto }).eq("id", id);
+  if (error) redirect(`${back}?erro=${encodeURIComponent(mensagemAmigavel(error.message))}`);
+  revalidatePath(back);
+  redirect(`${back}?ok=item_editado`);
+}
+
+export async function excluirCheckinItem(formData: FormData) {
+  const sb = await gateAdmin();
+  const id = String(formData.get("id") ?? "");
+  const programaId = String(formData.get("programa_id") ?? "");
+  const protocoloId = String(formData.get("protocolo_id") ?? "");
+  const back = editorBack(programaId, protocoloId);
+  const { error } = await sb.from("protocolo_checkin_itens").delete().eq("id", id);
+  if (error) redirect(`${back}?erro=${encodeURIComponent(mensagemAmigavel(error.message))}`);
+  revalidatePath(back);
+  redirect(`${back}?ok=item_excluido`);
+}
+
+export async function reordenarCheckinItens(formData: FormData) {
+  const sb = await gateAdmin();
+  const id = String(formData.get("id") ?? "");
+  const programaId = String(formData.get("programa_id") ?? "");
+  const protocoloId = String(formData.get("protocolo_id") ?? "");
+  const direcao = String(formData.get("direcao") ?? "");
+  const back = editorBack(programaId, protocoloId);
+  const { data: atualRow } = await sb
+    .from("protocolo_checkin_itens")
+    .select("id, ordem")
+    .eq("id", id)
+    .maybeSingle();
+  const atual = atualRow as { id: string; ordem: number } | null;
+  if (!atual) redirect(`${back}?erro=${encodeURIComponent("Item não encontrado.")}`);
+  const alvo = direcao === "cima" ? atual!.ordem - 1 : atual!.ordem + 1;
+  const { data: vizRow } = await sb
+    .from("protocolo_checkin_itens")
+    .select("id, ordem")
+    .eq("dia_id", protocoloId)
+    .eq("ordem", alvo)
+    .maybeSingle();
+  const viz = vizRow as { id: string; ordem: number } | null;
+  if (!viz) redirect(`${back}?ok=sem_mudanca`);
+  await sb.from("protocolo_checkin_itens").update({ ordem: -1 }).eq("id", atual!.id);
+  await sb.from("protocolo_checkin_itens").update({ ordem: atual!.ordem }).eq("id", viz!.id);
+  await sb.from("protocolo_checkin_itens").update({ ordem: alvo }).eq("id", atual!.id);
+  revalidatePath(back);
+  redirect(`${back}?ok=item_reordenado`);
+}
+
+// ----------------------------- CAMPOS DE IMAGEM ----------------------------
+
+export async function salvarCampoImagem(formData: FormData) {
+  const sb = await gateAdmin();
+  const programaId = String(formData.get("programa_id") ?? "");
+  const protocoloId = String(formData.get("protocolo_id") ?? "");
+  const slot = Number(formData.get("slot"));
+  const back = editorBack(programaId, protocoloId);
+  if (![1, 2, 3].includes(slot))
+    redirect(`${back}?erro=${encodeURIComponent("Campo de imagem inválido.")}`);
+  const { error } = await sb.from("protocolo_imagem_campos").upsert(
+    {
+      dia_id: protocoloId,
+      slot,
+      ativo: formData.get("ativo") === "on",
+      titulo: String(formData.get("titulo") ?? "").trim() || null,
+      instrucao: String(formData.get("instrucao") ?? "").trim() || null,
+      obrigatorio: formData.get("obrigatorio") === "on",
+    },
+    { onConflict: "dia_id,slot" },
+  );
+  if (error) redirect(`${back}?erro=${encodeURIComponent(mensagemAmigavel(error.message))}`);
+  revalidatePath(back);
+  redirect(`${back}?ok=campo_salvo`);
+}
+
 // ============================ PUBLICAÇÃO ===================================
 
 export async function publicarPrograma(formData: FormData) {
