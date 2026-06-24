@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { sair } from "@/lib/auth/actions";
+import { AreaSwitch } from "@/components/ui/area-switch";
 
 const NAV: [string, string][] = [
   ["/admin", "Dashboard"],
@@ -36,9 +37,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <Link href="/dashboard" className="text-sm text-subtle transition hover:text-gold">
-            Área do Guerreiro
-          </Link>
+          <AreaSwitch href="/dashboard">Área do Guerreiro</AreaSwitch>
           <form action={sair}>
             <button type="submit" className="text-sm text-subtle transition hover:text-gold">
               Sair

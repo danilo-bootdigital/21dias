@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { sair } from "@/lib/auth/actions";
 import { Avatar } from "@/components/ui/avatar";
+import { AreaSwitch } from "@/components/ui/area-switch";
 
 const NAV: [string, string][] = [
   ["/dashboard", "Dashboard"],
@@ -69,12 +70,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </Link>
           ))}
           {ehAdmin ? (
-            <Link
-              href="/admin"
-              className="ml-auto rounded-full border border-gold/40 px-3 py-1 text-gold transition hover:bg-gold/10"
-            >
+            <AreaSwitch href="/admin" className="ml-auto">
               Área Administrativa
-            </Link>
+            </AreaSwitch>
           ) : null}
         </div>
       </nav>
