@@ -62,12 +62,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </header>
       <nav className="border-b border-border px-6">
-        <div className="mx-auto flex max-w-2xl flex-wrap gap-4 py-3 text-sm">
+        <div className="mx-auto flex max-w-2xl flex-wrap items-center gap-4 py-3 text-sm">
           {NAV.map(([href, label]) => (
             <Link key={href} href={href} className="text-subtle transition hover:text-gold">
               {label}
             </Link>
           ))}
+          {ehAdmin ? (
+            <Link
+              href="/admin"
+              className="ml-auto rounded-full border border-gold/40 px-3 py-1 text-gold transition hover:bg-gold/10"
+            >
+              Área Administrativa
+            </Link>
+          ) : null}
         </div>
       </nav>
       <div className="mx-auto max-w-2xl px-6 py-10">{children}</div>

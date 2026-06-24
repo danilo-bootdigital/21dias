@@ -11,7 +11,6 @@ const NAV: [string, string][] = [
   ["/admin/matriculas", "Matrículas"],
   ["/admin/entitlements", "Entitlements"],
   ["/admin/acesso", "Conceder acesso"],
-  ["/perfil", "Perfil"],
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -36,11 +35,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             ))}
           </nav>
         </div>
-        <form action={sair}>
-          <button type="submit" className="text-sm text-subtle transition hover:text-gold">
-            Sair
-          </button>
-        </form>
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard" className="text-sm text-subtle transition hover:text-gold">
+            Área do Guerreiro
+          </Link>
+          <form action={sair}>
+            <button type="submit" className="text-sm text-subtle transition hover:text-gold">
+              Sair
+            </button>
+          </form>
+        </div>
       </header>
       <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>
     </div>
