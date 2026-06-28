@@ -1,6 +1,12 @@
 import { jornadaContexto } from "@/lib/jornada/contexto";
-import { RankingTabs } from "@/components/jornada";
+import { ScreenTitle } from "@/components/ui/primitives";
+import { EmptyState } from "@/components/ui/cards";
+import { RankingView, type RankRow } from "./_components/ranking-view";
 
+/**
+ * Ranking — só montagem de dados (reusa as views ranking_* e a RLS existentes).
+ * Apresentação em <RankingView> (components/ui). Sem tabela, mobile-first.
+ */
 const VIEWS: Record<string, { view: string; col: string; label: string }> = {
   geral: { view: "ranking_geral", col: "pontos_total", label: "Pontos" },
   semanal: { view: "ranking_semanal", col: "pontos_semana", label: "Pontos da semana" },
@@ -20,8 +26,12 @@ export default async function RankingPage({
   if (!ctx || ctx.matriculas.length === 0) {
     return (
       <div>
-        <h1 className="font-display text-3xl font-semibold">Ranking</h1>
-        <p className="mt-3 text-muted">Você ainda não participa de nenhuma turma.</p>
+        <ScreenTitle>Ranking</ScreenTitle>
+        <div className="mt-6">
+          <EmptyState titulo="Você ainda não está em uma turma">
+            Assim que sua jornada começar, a disputa da sua turma aparece aqui.
+          </EmptyState>
+        </div>
       </div>
     );
   }
@@ -36,16 +46,11 @@ export default async function RankingPage({
     .eq("turma_id", turmaId)
     .order("posicao", { ascending: true });
 
-  const rows = ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
+  const rows: RankRow[] = ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
     posicao: Number(r.posicao),
     valor: Number(r[col] ?? 0),
     ehVoce: minhasIds.has(String(r.matricula_id)),
   }));
 
-  return (
-    <div>
-      <h1 className="mb-4 font-display text-3xl font-semibold">Ranking da turma</h1>
-      <RankingTabs tab={tab} rows={rows} metricaLabel={label} />
-    </div>
-  );
+  return <RankingView tab={tab} rows={rows} metricaLabel={label} />;
 }
