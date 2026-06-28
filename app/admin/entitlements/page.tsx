@@ -26,16 +26,20 @@ export default async function EntitlementsPage() {
 
   return (
     <div>
-      <PageHeader title="Entitlements" />
+      <PageHeader title="Auditoria de Acessos" />
+      <p className="mb-4 text-sm text-subtle">
+        Suporte / auditoria — direitos de acesso concedidos. A operação do dia a dia fica em
+        Conceder Acesso, Guerreiros e Matrículas.
+      </p>
       <table className="w-full border-collapse">
         <thead>
           <tr>
             <th className={th}>E-mail</th>
             <th className={th}>Programa</th>
-            <th className={th}>Origem</th>
-            <th className={th}>Provider</th>
+            <th className={th}>Origem do acesso</th>
+            <th className={th}>Provedor</th>
             <th className={th}>Status</th>
-            <th className={th}>Matrícula</th>
+            <th className={th}>Matrícula vinculada</th>
           </tr>
         </thead>
         <tbody>

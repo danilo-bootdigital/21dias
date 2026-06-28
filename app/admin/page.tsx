@@ -56,7 +56,7 @@ export default async function AdminDashboard() {
         <Card label="Em andamento" value={tAndamento} />
         <Card label="Futuras" value={tFuturas} />
         <Card label="Encerradas" value={tEncerradas} />
-        <Card label="Entitlements ativos" value={entAtivos} />
+        <Card label="Direitos de Acesso ativos" value={entAtivos} />
       </div>
 
       <h2 className="mb-2 text-sm uppercase tracking-wider text-subtle">Acessos por origem</h2>
