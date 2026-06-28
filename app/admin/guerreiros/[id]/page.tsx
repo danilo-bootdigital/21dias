@@ -1,9 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { PageHeader, StatusBadge, Aviso, td, th } from "@/components/admin/ui";
-import { definirPerfilAcesso } from "@/lib/admin/roles";
-
-const selectCls =
-  "rounded-lg border border-border bg-ground px-3 py-2 text-text outline-none focus:border-gold";
+import { AcessoSistema } from "@/components/admin/acesso-sistema";
 
 export default async function GuerreiroDetalhe({
   params,
@@ -80,38 +77,7 @@ export default async function GuerreiroDetalhe({
         {perfil?.users?.email ?? "—"} · {perfil?.cidade ?? "sem cidade"}
       </p>
 
-      <section className="mb-8 rounded-2xl border border-border bg-surface-raised px-4 py-4">
-        <h2 className="mb-1 text-sm uppercase tracking-wider text-subtle">Perfil de acesso</h2>
-        <p className="mb-3 text-xs text-subtle">
-          Todo administrador também é guerreiro. Guerreiro + Administrador libera os menus e rotas
-          administrativas.
-        </p>
-        <form action={definirPerfilAcesso} className="flex flex-wrap items-end gap-3">
-          <input type="hidden" name="user_id" value={id} />
-          <label className="flex flex-col gap-1 text-sm text-muted">
-            Perfil
-            <select
-              name="perfil"
-              defaultValue={ehAdmin ? "administrador" : "guerreiro"}
-              className={selectCls}
-            >
-              <option value="guerreiro">Guerreiro</option>
-              <option value="administrador">Guerreiro + Administrador</option>
-            </select>
-          </label>
-          <button
-            type="submit"
-            className="rounded-lg bg-gold px-5 py-2 text-sm font-medium text-ground transition hover:bg-gold-strong"
-          >
-            Salvar perfil
-          </button>
-        </form>
-        {ehProprio ? (
-          <p className="mt-2 text-xs text-amber-300">
-            Este é o seu próprio usuário — você não pode remover o seu acesso de administrador.
-          </p>
-        ) : null}
-      </section>
+      <AcessoSistema userId={id} ehAdminInicial={ehAdmin} ehProprio={ehProprio} />
 
       <h2 className="mb-2 text-sm uppercase tracking-wider text-subtle">
         Matrículas / histórico de acesso
