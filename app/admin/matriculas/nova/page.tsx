@@ -11,9 +11,9 @@ const STATUS_TURMA_BLOQUEADOS = new Set(["encerrada", "arquivada"]);
 export default async function NovaMatriculaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ erro?: string }>;
+  searchParams: Promise<{ erro?: string; user?: string }>;
 }) {
-  const { erro } = await searchParams;
+  const { erro, user } = await searchParams;
   const sb = await createServerSupabase();
 
   const { data: usersRow } = await sb
@@ -61,7 +61,12 @@ export default async function NovaMatriculaPage({
         <form action={criarMatriculaManual} className="flex flex-col gap-4">
           <label className="flex flex-col gap-1 text-sm text-muted">
             Guerreiro
-            <select name="user_id" required defaultValue="" className={input}>
+            <select
+              name="user_id"
+              required
+              defaultValue={users.some((u) => u.id === user) ? user : ""}
+              className={input}
+            >
               <option value="" disabled>
                 Selecione…
               </option>

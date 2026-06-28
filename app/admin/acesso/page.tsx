@@ -9,10 +9,18 @@ const ORIGENS = ["cortesia", "convite", "offline", "interno", "teste"];
 export default async function AcessoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; erro?: string }>;
+  searchParams: Promise<{ ok?: string; erro?: string; user?: string }>;
 }) {
-  const { ok, erro } = await searchParams;
+  const { ok, erro, user } = await searchParams;
   const sb = await createServerSupabase();
+
+  // Pré-preenchimento: resolve o e-mail do Guerreiro a partir de ?user=<uuid>
+  // (arquitetura existente; sem alterar a server action nem a concessão).
+  let emailPre = "";
+  if (user) {
+    const { data: uRow } = await sb.from("users").select("email").eq("id", user).maybeSingle();
+    emailPre = (uRow as { email: string } | null)?.email ?? "";
+  }
   const { data: programas } = await sb.from("programas").select("id, nome").order("nome");
   const { data: turmas } = await sb
     .from("turmas")
@@ -40,6 +48,7 @@ export default async function AcessoPage({
           type="email"
           inputMode="email"
           autoComplete="off"
+          defaultValue={emailPre}
           required
         />
 

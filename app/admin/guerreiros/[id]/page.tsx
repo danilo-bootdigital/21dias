@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { PageHeader, StatusBadge, Aviso, td, th } from "@/components/admin/ui";
+import { StatusBadge, Aviso } from "@/components/admin/ui";
 import { AcessoSistema } from "@/components/admin/acesso-sistema";
+import { ButtonLink, Card, Tag } from "@/components/ui/primitives";
 import { nomeDeGuerreiro } from "@/lib/identity";
 
 const ORIGEM_LABEL: Record<string, string> = {
@@ -21,6 +23,21 @@ function Info({ rotulo, valor }: { rotulo: string; valor: string }) {
     </div>
   );
 }
+
+function Resumo({ valor, rotulo }: { valor: number; rotulo: string }) {
+  return (
+    <div className="text-center">
+      <p className="font-display text-2xl font-extrabold tabular-nums">{valor}</p>
+      <p className="mt-0.5 text-[0.7rem] leading-tight text-subtle">{rotulo}</p>
+    </div>
+  );
+}
+
+const ChevronRight = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0 text-subtle">
+    <path d="M9 6l6 6-6 6" />
+  </svg>
+);
 
 export default async function GuerreiroDetalhe({
   params,
@@ -53,6 +70,7 @@ export default async function GuerreiroDetalhe({
   const mats = (matsRow ?? []) as unknown as {
     id: string;
     status: string;
+    joined_at: string | null;
     entitlement_id: string | null;
     turmas: { codigo: string; programas: { nome: string } | null } | null;
   }[];
@@ -73,7 +91,6 @@ export default async function GuerreiroDetalhe({
     turmas: { codigo: string } | null;
   }[];
 
-  // Quem concedeu (granted_by → nome do guerreiro) e quais acessos têm matrícula.
   const concedentes = Array.from(new Set(ents.map((e) => e.granted_by).filter(Boolean))) as string[];
   const { data: concRows } = concedentes.length
     ? await sb.from("guerreiro_profiles").select("user_id, nome_guerreiro").in("user_id", concedentes)
@@ -85,6 +102,7 @@ export default async function GuerreiroDetalhe({
     ]),
   );
   const comMatricula = new Set(mats.map((m) => m.entitlement_id).filter(Boolean));
+  const origemPorEnt = new Map(ents.map((e) => [e.id, e.origem] as const));
 
   // Perfil de acesso atual: role global `admin` => Guerreiro + Administrador.
   const { data: adminRoleRow } = await sb
@@ -97,7 +115,6 @@ export default async function GuerreiroDetalhe({
     .maybeSingle();
   const ehAdmin = Boolean(adminRoleRow);
 
-  // É o próprio admin logado? (não pode remover o próprio acesso)
   const {
     data: { user: authUser },
   } = await sb.auth.getUser();
@@ -106,77 +123,130 @@ export default async function GuerreiroDetalhe({
     : { data: null };
   const ehProprio = (meRow as { id: string } | null)?.id === id;
 
-  return (
-    <div>
-      <PageHeader title={perfil?.nome_guerreiro ?? "Guerreiro"} />
-      <Aviso ok={ok} erro={erro} />
-      <p className="mb-6 text-sm text-muted">
-        {perfil?.users?.email ?? "—"} · {perfil?.cidade ?? "sem cidade"}
-      </p>
+  // Resumo — apenas a partir dos dados já carregados.
+  const acessosAtivos = ents.filter((e) => e.status === "ativo").length;
+  const email = perfil?.users?.email ?? "";
 
+  return (
+    <div className="flex flex-col gap-6">
+      {/* 1 · Cabeçalho */}
+      <header>
+        <h1 className="font-display text-2xl font-semibold">{nomeDeGuerreiro(perfil?.nome_guerreiro)}</h1>
+        <p className="mt-1 break-all text-sm text-muted">
+          {email || "—"}
+          {perfil?.cidade ? ` · ${perfil.cidade}` : ""}
+        </p>
+        <Aviso ok={ok} erro={erro} />
+      </header>
+
+      {/* 2 · Card resumo (acima da dobra) */}
+      <Card className="flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs uppercase tracking-wider text-subtle">Perfil de acesso</span>
+          <Tag tone={ehAdmin ? "info" : "neutral"}>
+            {ehAdmin ? "Guerreiro + Administrador" : "Guerreiro"}
+          </Tag>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <Resumo valor={mats.length} rotulo="Matrículas" />
+          <Resumo valor={ents.length} rotulo="Direitos de acesso" />
+          <Resumo valor={acessosAtivos} rotulo="Ativos" />
+        </div>
+      </Card>
+
+      {/* 3 · Barra de ações (sticky logo abaixo do header do Admin Shell) */}
+      <div className="sticky top-[calc(61px_+_max(12px,env(safe-area-inset-top)))] z-20 -mx-4 border-y border-border bg-ground/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <ButtonLink href={`/admin/acesso?user=${id}`} variante="secondary">
+            Conceder Acesso
+          </ButtonLink>
+          <ButtonLink href={`/admin/matriculas/nova?user=${id}`} variante="outline">
+            Matricular
+          </ButtonLink>
+          <ButtonLink href="/admin/guerreiros" variante="ghost">
+            Voltar para lista
+          </ButtonLink>
+        </div>
+      </div>
+
+      {/* 4 · Acesso ao Sistema — componente preservado */}
       <AcessoSistema userId={id} ehAdminInicial={ehAdmin} ehProprio={ehProprio} />
 
-      <h2 className="mb-2 text-sm uppercase tracking-wider text-subtle">
-        Matrículas / histórico de acesso
-      </h2>
-      <table className="mb-8 w-full border-collapse">
-        <thead>
-          <tr>
-            <th className={th}>Programa</th>
-            <th className={th}>Turma</th>
-            <th className={th}>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {mats.map((m) => (
-            <tr key={m.id}>
-              <td className={td}>{m.turmas?.programas?.nome ?? "—"}</td>
-              <td className={td}>{m.turmas?.codigo ?? "—"}</td>
-              <td className={td}>
-                <StatusBadge value={m.status} />
-              </td>
-            </tr>
-          ))}
-          {mats.length === 0 ? (
-            <tr>
-              <td className={td} colSpan={3}>
-                Sem matrículas.
-              </td>
-            </tr>
-          ) : null}
-        </tbody>
-      </table>
+      {/* 5 · Matrículas (cards navegáveis) */}
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm uppercase tracking-wider text-subtle">Matrículas / histórico</h2>
+        {mats.length === 0 ? (
+          <p className="rounded-2xl border border-border bg-surface px-4 py-4 text-sm text-subtle">
+            Sem matrículas.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {mats.map((m) => {
+              const origem = m.entitlement_id ? origemPorEnt.get(m.entitlement_id) : undefined;
+              return (
+                <Link
+                  key={m.id}
+                  href="/admin/matriculas"
+                  className="block rounded-2xl border border-border bg-surface px-4 py-4 transition-colors duration-fast ease-standard hover:border-gold"
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="font-medium text-text">{m.turmas?.programas?.nome ?? "—"}</p>
+                    <div className="flex items-center gap-2">
+                      <StatusBadge value={m.status} />
+                      <ChevronRight />
+                    </div>
+                  </div>
+                  <dl className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                    <Info rotulo="Turma" valor={m.turmas?.codigo ?? "—"} />
+                    <Info
+                      rotulo="Data de entrada"
+                      valor={m.joined_at ? new Date(m.joined_at).toLocaleDateString("pt-BR") : "—"}
+                    />
+                    <Info
+                      rotulo="Origem do acesso"
+                      valor={origem ? (ORIGEM_LABEL[origem] ?? origem) : "—"}
+                    />
+                  </dl>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
-      <h2 className="mb-3 text-sm uppercase tracking-wider text-subtle">Acesso ao Programa</h2>
-      {ents.length === 0 ? (
-        <p className="rounded-2xl border border-border bg-surface px-4 py-4 text-sm text-subtle">
-          Nenhum direito de acesso registrado.
-        </p>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {ents.map((e) => (
-            <div key={e.id} className="rounded-2xl border border-border bg-surface px-4 py-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <p className="font-medium text-text">{e.programas?.nome ?? "—"}</p>
-                <StatusBadge value={e.status} />
+      {/* 6 · Acesso ao Programa (cards) */}
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm uppercase tracking-wider text-subtle">Acesso ao Programa</h2>
+        {ents.length === 0 ? (
+          <p className="rounded-2xl border border-border bg-surface px-4 py-4 text-sm text-subtle">
+            Nenhum direito de acesso registrado.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {ents.map((e) => (
+              <div key={e.id} className="rounded-2xl border border-border bg-surface px-4 py-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="font-medium text-text">{e.programas?.nome ?? "—"}</p>
+                  <StatusBadge value={e.status} />
+                </div>
+                <dl className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                  <Info rotulo="Origem do acesso" valor={ORIGEM_LABEL[e.origem] ?? e.origem} />
+                  <Info
+                    rotulo="Data da concessão"
+                    valor={new Date(e.created_at).toLocaleDateString("pt-BR")}
+                  />
+                  <Info
+                    rotulo="Concedido por"
+                    valor={e.granted_by ? (nomeConcedente.get(e.granted_by) ?? "—") : "—"}
+                  />
+                  <Info rotulo="Turma vinculada" valor={e.turmas?.codigo ?? "—"} />
+                  <Info rotulo="Matrícula vinculada" valor={comMatricula.has(e.id) ? "Sim" : "Não"} />
+                </dl>
               </div>
-              <dl className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-                <Info rotulo="Origem do acesso" valor={ORIGEM_LABEL[e.origem] ?? e.origem} />
-                <Info
-                  rotulo="Data da concessão"
-                  valor={new Date(e.created_at).toLocaleDateString("pt-BR")}
-                />
-                <Info
-                  rotulo="Concedido por"
-                  valor={e.granted_by ? (nomeConcedente.get(e.granted_by) ?? "—") : "—"}
-                />
-                <Info rotulo="Turma vinculada" valor={e.turmas?.codigo ?? "—"} />
-                <Info rotulo="Matrícula vinculada" valor={comMatricula.has(e.id) ? "Sim" : "Não"} />
-              </dl>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
