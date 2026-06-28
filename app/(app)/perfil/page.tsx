@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { sair } from "@/lib/auth/actions";
+import { nomeDeGuerreiro } from "@/lib/identity";
 import { NomeComMedalha } from "@/components/gamificacao";
 import { getEvolutionReward } from "@/lib/gamificacao/recompensa";
 import { PerfilForm, type PerfilInicial } from "@/components/perfil/perfil-form";
@@ -67,7 +69,7 @@ export default async function PerfilPage({
     }
   }
   const recompensa = getEvolutionReward(percentualEvolucao);
-  const nomeGuerreiro = p.nome_guerreiro?.trim() || "Guerreiro";
+  const nomeGuerreiro = nomeDeGuerreiro(p.nome_guerreiro);
 
   return (
     <div>
@@ -109,6 +111,15 @@ export default async function PerfilPage({
       ) : null}
 
       <PerfilForm inicial={inicial} authUserId={user.id} desabilitado={!domainUser} />
+
+      <form action={sair} className="mt-10 border-t border-border pt-6">
+        <button
+          type="submit"
+          className="text-sm text-subtle transition hover:text-gold"
+        >
+          Sair da conta
+        </button>
+      </form>
     </div>
   );
 }
