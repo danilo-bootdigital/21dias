@@ -1,5 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/admin/ui";
+import { Eyebrow } from "@/components/ui/primitives";
+import { StatCard } from "@/components/ui/cards";
 
 type SB = Awaited<ReturnType<typeof createServerSupabase>>;
 
@@ -10,15 +12,6 @@ async function countEq(sb: SB, table: string, col: string, val: string) {
 async function countIn(sb: SB, table: string, col: string, vals: string[]) {
   const { count } = await sb.from(table).select("id", { count: "exact", head: true }).in(col, vals);
   return count ?? 0;
-}
-
-function Card({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div className="rounded-xl border border-border bg-surface p-4">
-      <p className="text-3xl font-semibold text-text">{value}</p>
-      <p className="mt-1 text-sm text-subtle">{label}</p>
-    </div>
-  );
 }
 
 export default async function AdminDashboard() {
@@ -41,30 +34,36 @@ export default async function AdminDashboard() {
     porOrigem[e.origem] = (porOrigem[e.origem] ?? 0) + 1;
 
   return (
-    <div>
+    <div className="flex flex-col gap-8">
       <PageHeader title="Dashboard" />
 
-      <h2 className="mb-2 text-sm uppercase tracking-wider text-subtle">Matrículas</h2>
-      <div className="mb-6 grid grid-cols-3 gap-3">
-        <Card label="Ativas" value={mAtivas} />
-        <Card label="Concluídas" value={mConcluidas} />
-        <Card label="Canceladas" value={mCanceladas} />
-      </div>
+      <section className="flex flex-col gap-3">
+        <Eyebrow>Matrículas</Eyebrow>
+        <div className="grid grid-cols-3 gap-3">
+          <StatCard valor={mAtivas} rotulo="Ativas" />
+          <StatCard valor={mConcluidas} rotulo="Concluídas" />
+          <StatCard valor={mCanceladas} rotulo="Canceladas" />
+        </div>
+      </section>
 
-      <h2 className="mb-2 text-sm uppercase tracking-wider text-subtle">Turmas & acesso</h2>
-      <div className="mb-6 grid grid-cols-4 gap-3">
-        <Card label="Em andamento" value={tAndamento} />
-        <Card label="Futuras" value={tFuturas} />
-        <Card label="Encerradas" value={tEncerradas} />
-        <Card label="Direitos de Acesso ativos" value={entAtivos} />
-      </div>
+      <section className="flex flex-col gap-3">
+        <Eyebrow>Turmas & acesso</Eyebrow>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard valor={tAndamento} rotulo="Em andamento" />
+          <StatCard valor={tFuturas} rotulo="Futuras" />
+          <StatCard valor={tEncerradas} rotulo="Encerradas" />
+          <StatCard valor={entAtivos} rotulo="Direitos de Acesso ativos" />
+        </div>
+      </section>
 
-      <h2 className="mb-2 text-sm uppercase tracking-wider text-subtle">Acessos por origem</h2>
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
-        {["compra", "cortesia", "convite", "offline", "interno", "teste"].map((o) => (
-          <Card key={o} label={o} value={porOrigem[o] ?? 0} />
-        ))}
-      </div>
+      <section className="flex flex-col gap-3">
+        <Eyebrow>Acessos por origem</Eyebrow>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {["compra", "cortesia", "convite", "offline", "interno", "teste"].map((o) => (
+            <StatCard key={o} valor={porOrigem[o] ?? 0} rotulo={o} />
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
