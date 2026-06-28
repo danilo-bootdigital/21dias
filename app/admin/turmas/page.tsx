@@ -1,6 +1,14 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { PageHeader, StatusBadge, LinkBtn, td, th } from "@/components/admin/ui";
+import { PageHeader, StatusBadge } from "@/components/admin/ui";
+import { ButtonLink } from "@/components/ui/primitives";
+import { EmptyState } from "@/components/ui/cards";
+
+const Chevron = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0 text-subtle">
+    <path d="M9 6l6 6-6 6" />
+  </svg>
+);
 
 export default async function TurmasPage() {
   const sb = await createServerSupabase();
@@ -24,46 +32,44 @@ export default async function TurmasPage() {
   }[];
 
   return (
-    <div>
-      <PageHeader title="Turmas" action={<LinkBtn href="/admin/turmas/nova">Nova turma</LinkBtn>} />
-      <table className="w-full border-collapse">
-        <thead>
-          <tr>
-            <th className={th}>Programa</th>
-            <th className={th}>Código</th>
-            <th className={th}>Status</th>
-            <th className={th}>Matriculados</th>
-            <th className={th}></th>
-          </tr>
-        </thead>
-        <tbody>
+    <div className="flex flex-col gap-5">
+      <PageHeader title="Turmas" />
+      <ButtonLink href="/admin/turmas/nova" variante="primary">
+        + Nova turma
+      </ButtonLink>
+
+      {rows.length === 0 ? (
+        <EmptyState titulo="Nenhuma turma">
+          Use “Nova turma” para criar a primeira turma de um programa.
+        </EmptyState>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {rows.map((t) => (
-            <tr key={t.id}>
-              <td className={td}>{t.programas?.nome ?? "—"}</td>
-              <td className={td}>{t.codigo}</td>
-              <td className={td}>
-                <StatusBadge value={t.status} />
-              </td>
-              <td className={td}>
+            <Link
+              key={t.id}
+              href={`/admin/turmas/${t.id}`}
+              className="block rounded-2xl border border-border bg-surface px-4 py-4 transition-colors duration-fast ease-standard hover:border-gold"
+            >
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="truncate font-medium text-text">{t.programas?.nome ?? "—"}</p>
+                <div className="flex items-center gap-2">
+                  <StatusBadge value={t.status} />
+                  <Chevron />
+                </div>
+              </div>
+              <p className="text-sm text-subtle">
+                Turma {t.codigo}
+                {t.starts_at ? ` · início ${new Date(t.starts_at).toLocaleDateString("pt-BR")}` : ""}
+              </p>
+              <p className="mt-1 text-sm text-muted">
                 {ativos[t.id] ?? 0}
-                {t.tamanho_max ? ` / ${t.tamanho_max}` : ""}
-              </td>
-              <td className={td}>
-                <Link href={`/admin/turmas/${t.id}`} className="text-gold hover:underline">
-                  Editar
-                </Link>
-              </td>
-            </tr>
+                {t.tamanho_max ? ` / ${t.tamanho_max}` : ""} matriculado
+                {(ativos[t.id] ?? 0) === 1 ? "" : "s"}
+              </p>
+            </Link>
           ))}
-          {rows.length === 0 ? (
-            <tr>
-              <td className={td} colSpan={5}>
-                Nenhuma turma.
-              </td>
-            </tr>
-          ) : null}
-        </tbody>
-      </table>
+        </div>
+      )}
     </div>
   );
 }
