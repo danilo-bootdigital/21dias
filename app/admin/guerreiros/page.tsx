@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { PageHeader, td, th } from "@/components/admin/ui";
-
-const input =
-  "rounded-lg border border-border bg-ground px-3 py-2 text-text outline-none focus:border-gold";
+import { PageHeader } from "@/components/admin/ui";
+import { ButtonLink, Card, Tag } from "@/components/ui/primitives";
+import { EmptyState } from "@/components/ui/cards";
+import { SearchInput } from "@/components/ui/fields";
+import { nomeDeGuerreiro } from "@/lib/identity";
 
 export default async function GuerreirosPage({
   searchParams,
@@ -12,6 +12,8 @@ export default async function GuerreirosPage({
 }) {
   const { q } = await searchParams;
   const sb = await createServerSupabase();
+
+  // Query de busca preservada exatamente (lista + filtro client por q).
   const { data } = await sb
     .from("guerreiro_profiles")
     .select("user_id, nome_guerreiro, cidade, users(email)")
@@ -33,48 +35,61 @@ export default async function GuerreirosPage({
     );
   }
 
+  // Leitura ADITIVA (read-only) para indicar acesso "Guerreiro + Admin".
+  const { data: adminRows } = await sb
+    .from("user_roles")
+    .select("user_id")
+    .eq("role", "admin")
+    .eq("scope_type", "global");
+  const adminSet = new Set(((adminRows ?? []) as { user_id: string }[]).map((r) => r.user_id));
+
   return (
-    <div>
+    <div className="flex flex-col gap-5">
       <PageHeader title="Guerreiros" />
-      <form className="mb-4">
-        <input
-          name="q"
-          defaultValue={q ?? ""}
-          placeholder="Buscar por nome, cidade ou e-mail"
-          className={`${input} w-80`}
-        />
+
+      <form>
+        <SearchInput name="q" defaultValue={q ?? ""} placeholder="Buscar por nome, cidade ou e-mail" />
       </form>
-      <table className="w-full border-collapse">
-        <thead>
-          <tr>
-            <th className={th}>Nome de guerreiro</th>
-            <th className={th}>Cidade</th>
-            <th className={th}>E-mail</th>
-            <th className={th}></th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.user_id}>
-              <td className={td}>{r.nome_guerreiro}</td>
-              <td className={td}>{r.cidade ?? "—"}</td>
-              <td className={td}>{r.users?.email ?? "—"}</td>
-              <td className={td}>
-                <Link href={`/admin/guerreiros/${r.user_id}`} className="text-gold hover:underline">
-                  Ver
-                </Link>
-              </td>
-            </tr>
-          ))}
-          {rows.length === 0 ? (
-            <tr>
-              <td className={td} colSpan={4}>
-                Nenhum guerreiro.
-              </td>
-            </tr>
-          ) : null}
-        </tbody>
-      </table>
+
+      {rows.length === 0 ? (
+        <EmptyState titulo={q ? "Nenhum guerreiro encontrado" : "Nenhum guerreiro ainda"}>
+          {q ? "Tente outro nome, cidade ou e-mail." : "Os guerreiros aparecerão aqui conforme entrarem na plataforma."}
+        </EmptyState>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {rows.map((r) => {
+            const ehAdmin = adminSet.has(r.user_id);
+            return (
+              <Card key={r.user_id} className="flex flex-col gap-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-text">{nomeDeGuerreiro(r.nome_guerreiro)}</p>
+                    <p className="text-sm text-subtle">{r.cidade ?? "—"}</p>
+                    <p className="break-all text-sm text-muted">{r.users?.email ?? "—"}</p>
+                  </div>
+                  <Tag tone={ehAdmin ? "info" : "neutral"} className="shrink-0">
+                    {ehAdmin ? "Guerreiro + Admin" : "Guerreiro"}
+                  </Tag>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <ButtonLink href={`/admin/guerreiros/${r.user_id}`} variante="secondary">
+                    Ver / Editar
+                  </ButtonLink>
+                  <div className="grid grid-cols-2 gap-2">
+                    <ButtonLink href="/admin/acesso" variante="outline">
+                      Conceder Acesso
+                    </ButtonLink>
+                    <ButtonLink href="/admin/matriculas/nova" variante="outline">
+                      Matricular
+                    </ButtonLink>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
