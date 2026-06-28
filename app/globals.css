@@ -2,21 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Código 21 — tokens da marca (espelham tailwind.config.ts) */
+/* ===========================================================================
+   Código 21 — Constituição Visual (Fase 1, mobile-first).
+   Tokens espelham tailwind.config.ts. Paleta premium dark + dourado, com
+   neutros enviesados para o ouro (warm grey, não cinza clínico).
+   Referência de experiência: docs/CONSTITUICAO-EXPERIENCIA-GUERREIRO.md
+   =========================================================================== */
 :root {
-  --ground: #111111;
-  --surface: #1a1a1a;
-  --surface-raised: #222222;
-  --border: #2a2a2a;
-  --text: #ffffff;
-  --muted: #d9d9d9;
-  --subtle: #8a8a8a;
+  --ground: #0d0d0d;
+  --surface: #161513;
+  --surface-raised: #1e1c18;
+  --border: #2a2824;
+  --line: #34302a;
+  --text: #f6f2ea;
+  --muted: #c7c1b4;
+  --subtle: #8c8578;
   --gold: #c8a45d;
   --gold-strong: #b89146;
+  --gold-bright: #e4c77e;
 
-  /* font stacks (famílias definitivas entram na fase de UI) */
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-display: Georgia, "Times New Roman", serif;
+  /* Tipografia — display = grotesca atlética (Archivo, self-hosted via next/font).
+     Compõe a variável da fonte com fallback de sistema (se a fonte não carregar). */
+  --font-display: var(--font-display-archivo), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, sans-serif;
+
+  /* Alvo de toque mínimo (polegar) e bordas seguras (notch / barra iOS). */
+  --tap: 48px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* Escala tipográfica fluida (mobile-first, cresce até desktop). */
+  --step-eyebrow: 0.72rem;
+  --step-body: 1rem;
+  --step-lead: clamp(1.05rem, 1rem + 0.6vw, 1.2rem);
+  --step-h3: clamp(1.1rem, 1.02rem + 0.5vw, 1.3rem);
+  --step-h2: clamp(1.5rem, 1.2rem + 1.6vw, 2.1rem);
+  --step-h1: clamp(2rem, 1.5rem + 2.6vw, 3rem);
 }
 
 @layer base {
@@ -24,13 +45,53 @@
     color-scheme: dark;
   }
   body {
+    min-height: 100dvh;
     background-color: var(--ground);
     color: var(--text);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
   ::selection {
     background-color: var(--gold);
     color: var(--ground);
+  }
+  /* Foco sempre visível (acessibilidade / navegação por teclado). */
+  :focus-visible {
+    outline: 2px solid var(--gold-bright);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Títulos da experiência — display, peso forte, tracking apertado. */
+  .h-display {
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 1.05;
+    font-size: var(--step-h1);
+    text-wrap: balance;
+  }
+  .h-section {
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    font-size: var(--step-h2);
+    text-wrap: balance;
+  }
+  .h-card {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    font-size: var(--step-h3);
+  }
+  .eyebrow {
+    font-size: var(--step-eyebrow);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    font-weight: 600;
   }
 }
