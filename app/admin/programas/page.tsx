@@ -3,7 +3,9 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { togglePublicarTemporada } from "@/lib/admin/turmas";
 import { listarProgramasAdmin } from "@/lib/admin/programas-data";
 import { PageHeader, Aviso, td, th } from "@/components/admin/ui";
-import { ProgramasTable, ProgramasResumo } from "@/components/admin/programas-ui";
+import { ProgramasResumo } from "@/components/admin/programas-ui";
+import { ProgramaCard } from "@/components/admin/programa-card";
+import { EmptyState } from "@/components/ui/cards";
 
 function ToggleBtn({
   action,
@@ -62,7 +64,17 @@ export default async function ProgramasPage({
 
       <ProgramasResumo programas={programas} />
 
-      <ProgramasTable programas={programas} />
+      {programas.length === 0 ? (
+        <EmptyState titulo="Nenhum programa">
+          Clique em <strong>+ Novo Programa</strong> para começar.
+        </EmptyState>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {programas.map((p) => (
+            <ProgramaCard key={p.id} p={p} />
+          ))}
+        </div>
+      )}
 
       <h2 className="mb-3 mt-10 text-sm uppercase tracking-wider text-subtle">Temporadas</h2>
       <div className="overflow-x-auto rounded-2xl border border-border">
