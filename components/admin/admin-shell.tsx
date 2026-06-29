@@ -15,15 +15,15 @@ import { BottomSheet } from "@/components/ui/overlays";
  * "Área do Guerreiro" reusa o componente AreaSwitch atual (sem novo padrão).
  */
 
-// Menu operacional. "Auditoria de Acessos" (/admin/entitlements) fica fora —
-// continua existindo como rota técnica.
+// Menu operacional. Telas técnicas ficam FORA do menu (continuam existindo como
+// rotas para auditoria/suporte): /admin/entitlements (Direitos de Acesso),
+// /admin/matriculas (matrículas) e /admin/acesso (conceder acesso) — todo o
+// cadastro/edição passa pelo fluxo único de "Guerreiros".
 const NAV: [string, string][] = [
   ["/admin", "Dashboard"],
   ["/admin/guerreiros", "Guerreiros"],
   ["/admin/turmas", "Turmas"],
   ["/admin/programas", "Programas"],
-  ["/admin/matriculas", "Matrículas"],
-  ["/admin/acesso", "Conceder Acesso"],
 ];
 
 const Icon = ({ d, size = 22 }: { d: string; size?: number }) => (

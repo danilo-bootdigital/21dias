@@ -1,9 +1,11 @@
-import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { StatusBadge, Aviso } from "@/components/admin/ui";
 import { AcessoSistema } from "@/components/admin/acesso-sistema";
-import { ButtonLink, Card, Tag } from "@/components/ui/primitives";
+import { ButtonLink, Card, Button } from "@/components/ui/primitives";
+import { TextInput, Select } from "@/components/ui/fields";
 import { nomeDeGuerreiro } from "@/lib/identity";
+import { editarGuerreiroPerfil, reenviarConvite } from "@/lib/admin/guerreiros-actions";
+import { formConceder, formCancelar, formReativar } from "@/lib/admin/forms";
 
 const ORIGEM_LABEL: Record<string, string> = {
   compra: "Compra",
@@ -24,21 +26,6 @@ function Info({ rotulo, valor }: { rotulo: string; valor: string }) {
   );
 }
 
-function Resumo({ valor, rotulo }: { valor: number; rotulo: string }) {
-  return (
-    <div className="text-center">
-      <p className="font-display text-2xl font-extrabold tabular-nums">{valor}</p>
-      <p className="mt-0.5 text-[0.7rem] leading-tight text-subtle">{rotulo}</p>
-    </div>
-  );
-}
-
-const ChevronRight = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0 text-subtle">
-    <path d="M9 6l6 6-6 6" />
-  </svg>
-);
-
 export default async function GuerreiroDetalhe({
   params,
   searchParams,
@@ -49,18 +36,20 @@ export default async function GuerreiroDetalhe({
   const { id } = await params; // = users.id
   const { ok, erro } = await searchParams;
   const sb = await createServerSupabase();
+  const back = `/admin/guerreiros/${id}`;
 
   const { data: perfilRow } = await sb
     .from("guerreiro_profiles")
-    .select("nome_guerreiro, cidade, bio, users(email)")
+    .select("nome_guerreiro, cidade, foto_url, users(email)")
     .eq("user_id", id)
     .maybeSingle();
   const perfil = perfilRow as unknown as {
     nome_guerreiro: string;
     cidade: string | null;
-    bio: string | null;
+    foto_url: string | null;
     users: { email: string } | null;
   } | null;
+  const email = perfil?.users?.email ?? "";
 
   const { data: matsRow } = await sb
     .from("matriculas")
@@ -75,10 +64,9 @@ export default async function GuerreiroDetalhe({
     turmas: { codigo: string; programas: { nome: string } | null } | null;
   }[];
 
-  // "Acesso ao Programa" (internamente entitlements). Lê só colunas já existentes.
   const { data: entsRow } = await sb
     .from("entitlements")
-    .select("id, origem, status, created_at, granted_by, programas(nome), turmas(codigo)")
+    .select("id, origem, status, created_at, programas(nome), turmas(codigo)")
     .eq("user_id", id)
     .order("created_at", { ascending: false });
   const ents = (entsRow ?? []) as unknown as {
@@ -86,25 +74,25 @@ export default async function GuerreiroDetalhe({
     origem: string;
     status: string;
     created_at: string;
-    granted_by: string | null;
     programas: { nome: string } | null;
     turmas: { codigo: string } | null;
   }[];
-
-  const concedentes = Array.from(new Set(ents.map((e) => e.granted_by).filter(Boolean))) as string[];
-  const { data: concRows } = concedentes.length
-    ? await sb.from("guerreiro_profiles").select("user_id, nome_guerreiro").in("user_id", concedentes)
-    : { data: [] };
-  const nomeConcedente = new Map(
-    ((concRows ?? []) as { user_id: string; nome_guerreiro: string }[]).map((r) => [
-      r.user_id,
-      nomeDeGuerreiro(r.nome_guerreiro),
-    ]),
-  );
   const comMatricula = new Set(mats.map((m) => m.entitlement_id).filter(Boolean));
-  const origemPorEnt = new Map(ents.map((e) => [e.id, e.origem] as const));
 
-  // Perfil de acesso atual: role global `admin` => Guerreiro + Administrador.
+  // Programas/turmas para a concessão inline de acesso.
+  const { data: progRows } = await sb.from("programas").select("id, nome").order("nome");
+  const { data: turmaRows } = await sb
+    .from("turmas")
+    .select("id, codigo, programas(nome)")
+    .order("codigo");
+  const programas = (progRows ?? []) as { id: string; nome: string }[];
+  const turmas = (turmaRows ?? []) as unknown as {
+    id: string;
+    codigo: string;
+    programas: { nome: string } | null;
+  }[];
+
+  // Permissão atual + auto-edição (evita lockout).
   const { data: adminRoleRow } = await sb
     .from("user_roles")
     .select("id")
@@ -123,10 +111,6 @@ export default async function GuerreiroDetalhe({
     : { data: null };
   const ehProprio = (meRow as { id: string } | null)?.id === id;
 
-  // Resumo — apenas a partir dos dados já carregados.
-  const acessosAtivos = ents.filter((e) => e.status === "ativo").length;
-  const email = perfil?.users?.email ?? "";
-
   return (
     <div className="flex flex-col gap-6">
       {/* 1 · Cabeçalho */}
@@ -139,82 +123,124 @@ export default async function GuerreiroDetalhe({
         <Aviso ok={ok} erro={erro} />
       </header>
 
-      {/* 2 · Card resumo (acima da dobra) */}
-      <Card className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-xs uppercase tracking-wider text-subtle">Perfil de acesso</span>
-          <Tag tone={ehAdmin ? "info" : "neutral"}>
-            {ehAdmin ? "Guerreiro + Administrador" : "Guerreiro"}
-          </Tag>
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          <Resumo valor={mats.length} rotulo="Matrículas" />
-          <Resumo valor={ents.length} rotulo="Direitos de acesso" />
-          <Resumo valor={acessosAtivos} rotulo="Ativos" />
-        </div>
-      </Card>
-
-      {/* 3 · Barra de ações (sticky logo abaixo do header do Admin Shell) */}
-      <div className="sticky top-[calc(61px_+_max(12px,env(safe-area-inset-top)))] z-20 -mx-4 border-y border-border bg-ground/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <ButtonLink href={`/admin/acesso?user=${id}`} variante="secondary">
-            Conceder Acesso
-          </ButtonLink>
-          <ButtonLink href={`/admin/matriculas/nova?user=${id}`} variante="outline">
-            Matricular
-          </ButtonLink>
-          <ButtonLink href="/admin/guerreiros" variante="ghost">
-            Voltar para lista
-          </ButtonLink>
-        </div>
+      {/* Ações rápidas */}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <form action={reenviarConvite}>
+          <input type="hidden" name="user_id" value={id} />
+          <Button type="submit" variante="outline">
+            Reenviar convite
+          </Button>
+        </form>
+        <ButtonLink href="/admin/guerreiros" variante="ghost">
+          Voltar para a lista
+        </ButtonLink>
       </div>
 
-      {/* 4 · Acesso ao Sistema — componente preservado */}
+      {/* 2 · Dados pessoais (edição inline) */}
+      <section className="rounded-2xl border border-border bg-surface-raised px-4 py-4">
+        <h2 className="mb-3 text-sm uppercase tracking-wider text-subtle">Dados pessoais</h2>
+        <form action={editarGuerreiroPerfil} className="flex flex-col gap-4">
+          <input type="hidden" name="user_id" value={id} />
+          <TextInput label="Nome do Guerreiro" name="nome_guerreiro" defaultValue={perfil?.nome_guerreiro ?? ""} required />
+          <TextInput label="Cidade" name="cidade" defaultValue={perfil?.cidade ?? ""} />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm text-muted" htmlFor="foto">
+              Trocar foto (opcional)
+            </label>
+            <input
+              id="foto"
+              name="foto"
+              type="file"
+              accept="image/*"
+              className="min-h-tap rounded-xl border border-border bg-ground px-3.5 py-2.5 text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-surface file:px-3 file:py-1.5 file:text-text"
+            />
+          </div>
+          <Button type="submit" variante="primary" fullWidth={false}>
+            Salvar dados
+          </Button>
+        </form>
+      </section>
+
+      {/* 3 · Acesso ao Sistema (permissões) */}
       <AcessoSistema userId={id} ehAdminInicial={ehAdmin} ehProprio={ehProprio} />
 
-      {/* 5 · Matrículas (cards navegáveis) */}
+      {/* 4 · Matrículas + lifecycle (desativar/reativar) */}
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm uppercase tracking-wider text-subtle">Matrículas / histórico</h2>
+        <h2 className="text-sm uppercase tracking-wider text-subtle">Matrículas</h2>
         {mats.length === 0 ? (
           <p className="rounded-2xl border border-border bg-surface px-4 py-4 text-sm text-subtle">
-            Sem matrículas.
+            Sem matrículas. Use “Adicionar acesso” abaixo.
           </p>
         ) : (
           <div className="flex flex-col gap-3">
-            {mats.map((m) => {
-              const origem = m.entitlement_id ? origemPorEnt.get(m.entitlement_id) : undefined;
-              return (
-                <Link
-                  key={m.id}
-                  href="/admin/matriculas"
-                  className="block rounded-2xl border border-border bg-surface px-4 py-4 transition-colors duration-fast ease-standard hover:border-gold"
-                >
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <p className="font-medium text-text">{m.turmas?.programas?.nome ?? "—"}</p>
-                    <div className="flex items-center gap-2">
-                      <StatusBadge value={m.status} />
-                      <ChevronRight />
-                    </div>
-                  </div>
-                  <dl className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-                    <Info rotulo="Turma" valor={m.turmas?.codigo ?? "—"} />
-                    <Info
-                      rotulo="Data de entrada"
-                      valor={m.joined_at ? new Date(m.joined_at).toLocaleDateString("pt-BR") : "—"}
-                    />
-                    <Info
-                      rotulo="Origem do acesso"
-                      valor={origem ? (ORIGEM_LABEL[origem] ?? origem) : "—"}
-                    />
-                  </dl>
-                </Link>
-              );
-            })}
+            {mats.map((m) => (
+              <Card key={m.id} className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-medium text-text">{m.turmas?.programas?.nome ?? "—"}</p>
+                  <StatusBadge value={m.status} />
+                </div>
+                <dl className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                  <Info rotulo="Turma" valor={m.turmas?.codigo ?? "—"} />
+                  <Info
+                    rotulo="Entrada"
+                    valor={m.joined_at ? new Date(m.joined_at).toLocaleDateString("pt-BR") : "—"}
+                  />
+                </dl>
+                {m.status === "ativa" ? (
+                  <form action={formCancelar}>
+                    <input type="hidden" name="matriculaId" value={m.id} />
+                    <input type="hidden" name="back" value={back} />
+                    <Button type="submit" variante="danger" fullWidth={false}>
+                      Desativar acesso
+                    </Button>
+                  </form>
+                ) : m.status === "cancelada" ? (
+                  <form action={formReativar}>
+                    <input type="hidden" name="matriculaId" value={m.id} />
+                    <input type="hidden" name="back" value={back} />
+                    <Button type="submit" variante="success" fullWidth={false}>
+                      Reativar acesso
+                    </Button>
+                  </form>
+                ) : null}
+              </Card>
+            ))}
           </div>
         )}
       </section>
 
-      {/* 6 · Acesso ao Programa (cards) */}
+      {/* 5 · Adicionar acesso (programa/turma) — inline, reusa concederAcessoManual */}
+      <section className="rounded-2xl border border-border bg-surface px-4 py-4">
+        <h2 className="mb-3 text-sm uppercase tracking-wider text-subtle">Adicionar acesso</h2>
+        <form action={formConceder} className="flex flex-col gap-4">
+          <input type="hidden" name="email" value={email} />
+          <input type="hidden" name="origem" value="interno" />
+          <input type="hidden" name="back" value={back} />
+          <Select label="Programa" name="programaId" defaultValue="" required>
+            <option value="" disabled>
+              Selecione…
+            </option>
+            {programas.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nome}
+              </option>
+            ))}
+          </Select>
+          <Select label="Turma" name="turmaId" defaultValue="" hint="Opcional — sem turma fica pendente de alocação.">
+            <option value="">— sem turma —</option>
+            {turmas.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.programas?.nome} / {t.codigo}
+              </option>
+            ))}
+          </Select>
+          <Button type="submit" variante="secondary" fullWidth={false}>
+            Conceder acesso
+          </Button>
+        </form>
+      </section>
+
+      {/* 6 · Acesso ao Programa (técnico, leitura) */}
       <section className="flex flex-col gap-3">
         <h2 className="text-sm uppercase tracking-wider text-subtle">Acesso ao Programa</h2>
         {ents.length === 0 ? (
@@ -234,10 +260,6 @@ export default async function GuerreiroDetalhe({
                   <Info
                     rotulo="Data da concessão"
                     valor={new Date(e.created_at).toLocaleDateString("pt-BR")}
-                  />
-                  <Info
-                    rotulo="Concedido por"
-                    valor={e.granted_by ? (nomeConcedente.get(e.granted_by) ?? "—") : "—"}
                   />
                   <Info rotulo="Turma vinculada" valor={e.turmas?.codigo ?? "—"} />
                   <Info rotulo="Matrícula vinculada" valor={comMatricula.has(e.id) ? "Sim" : "Não"} />
