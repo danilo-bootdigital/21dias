@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { audit } from "@/lib/admin/audit";
+import { nomeDeGuerreiro } from "@/lib/identity";
+import { enviarConviteMatricula } from "@/lib/email/enviar-convite-matricula";
+
+// URL oficial de acesso (pública).
+const URL_ACESSO = "https://app.codigo21.com.br";
 
 // ---------------------------------------------------------------------------
 // Cadastro MANUAL de matrícula (admin). Reutiliza a tabela `matriculas` e as
@@ -116,6 +121,69 @@ export async function criarMatriculaManual(formData: FormData) {
     status,
   });
 
+  // E-mail de convite — SOMENTE na criação inicial. Operação SECUNDÁRIA:
+  // nunca desfaz nem bloqueia a matrícula; falha vira sucesso parcial + log.
+  let conviteEnviado = false;
+  try {
+    const { data: uRow } = await sb
+      .from("users")
+      .select("email, guerreiro_profiles(nome_guerreiro)")
+      .eq("id", userId)
+      .maybeSingle();
+    const u = uRow as
+      | { email: string; guerreiro_profiles: { nome_guerreiro: string | null } | null }
+      | null;
+    const { data: pRow } = await sb
+      .from("programas")
+      .select("nome")
+      .eq("id", turma.programa_id)
+      .maybeSingle();
+    const programa = (pRow as { nome: string } | null)?.nome ?? "CÓDIGO 21";
+    const email = u?.email ?? "";
+
+    if (email) {
+      const r = await enviarConviteMatricula({
+        nome: nomeDeGuerreiro(u?.guerreiro_profiles?.nome_guerreiro),
+        email,
+        programa,
+        urlAcesso: URL_ACESSO,
+        matriculaId: id,
+        usuarioId: userId,
+      });
+      conviteEnviado = r.ok;
+      await audit("convite_matricula", `matricula:${id}`, {
+        tipo_evento: "convite_matricula",
+        usuario_id: userId,
+        email,
+        status: r.ok ? "enviado" : "erro",
+        ...(r.error ? { erro: r.error } : {}),
+      });
+    } else {
+      await audit("convite_matricula", `matricula:${id}`, {
+        tipo_evento: "convite_matricula",
+        usuario_id: userId,
+        email: "",
+        status: "erro",
+        erro: "sem_email",
+      });
+    }
+  } catch (e) {
+    conviteEnviado = false;
+    try {
+      await audit("convite_matricula", `matricula:${id}`, {
+        tipo_evento: "convite_matricula",
+        usuario_id: userId,
+        status: "erro",
+        erro: e instanceof Error ? e.message : "erro_desconhecido",
+      });
+    } catch {
+      // log seguro: se até o audit falhar, ignoramos — a matrícula está criada.
+    }
+  }
+
   revalidatePath("/admin/matriculas");
-  redirect("/admin/matriculas?ok=matricula_criada");
+  const msg = conviteEnviado
+    ? "Matrícula criada com sucesso. O convite foi enviado para o e-mail do guerreiro."
+    : "Matrícula criada com sucesso, porém não foi possível enviar o e-mail de convite. O guerreiro poderá acessar a plataforma usando a opção Esqueci minha senha.";
+  redirect(`/admin/matriculas?ok=${encodeURIComponent(msg)}`);
 }
