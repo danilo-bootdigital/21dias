@@ -52,5 +52,5 @@ export default async function RankingPage({
     ehVoce: minhasIds.has(String(r.matricula_id)),
   }));
 
-  return <RankingView tab={tab} rows={rows} metricaLabel={label} />;
+  return <RankingView tab={tab} rows={rows} metricaLabel={label} totalGuerreiros={rows.length} />;
 }
