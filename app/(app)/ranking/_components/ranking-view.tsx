@@ -217,7 +217,7 @@ export function RankingView({
             <section>
               <Eyebrow className="mb-2">Sua posição</Eyebrow>
               <Reveal>
-                <div className="rounded-2xl border border-gold/60 bg-surface-raised p-5 shadow-glow-gold">
+                <div className="rounded-2xl border border-gold/60 bg-gradient-to-br from-surface-raised via-surface-raised to-gold/10 p-5 shadow-glow-gold">
                   <div className="flex items-center gap-4">
                     <AvatarNivel foto={minha.foto} nome={minha.nome} nivel={minha.nivel} size={64} anel="gold" />
                     <div className="min-w-0 flex-1">
