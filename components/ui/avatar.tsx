@@ -29,7 +29,7 @@ export function Avatar({
 
   if (src) {
     return (
-      <span className={`${base} ${className}`} style={dim}>
+      <span className={`${base} inline-block ${className}`} style={dim}>
         <Image
           src={src}
           alt={nome ? `Foto de ${nome}` : "Foto do guerreiro"}
