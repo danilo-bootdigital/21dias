@@ -21,7 +21,7 @@ import { BottomSheet } from "@/components/ui/overlays";
 // cadastro/edição passa pelo fluxo único de "Guerreiros".
 const NAV: [string, string][] = [
   ["/admin", "Dashboard"],
-  ["/admin/guerreiros", "Guerreiros"],
+  ["/admin/guerreiros", "Cadastros"],
   ["/admin/turmas", "Turmas"],
   ["/admin/programas", "Programas"],
 ];

@@ -73,7 +73,8 @@ export async function editarGuerreiroPerfil(formData: FormData) {
 export async function reenviarConvite(formData: FormData) {
   const sb = await gateAdmin();
   const userId = String(formData.get("user_id") ?? "");
-  const back = `/admin/guerreiros/${userId}`;
+  // Destino de retorno opcional (ex.: a Central). Default: a tela do guerreiro.
+  const back = String(formData.get("back") || `/admin/guerreiros/${userId}`);
   const erro = (msg: string): never => redirect(`${back}?erro=${encodeURIComponent(msg)}`);
   if (!userId) erro("Usuário inválido.");
 
