@@ -69,6 +69,46 @@ export async function editarGuerreiroPerfil(formData: FormData) {
   redirect(`${back}?ok=${encodeURIComponent("Dados atualizados.")}`);
 }
 
+/**
+ * Exclui um Guerreiro DEFINITIVAMENTE. Remove o usuário de auth (service-role),
+ * o que cascateia public.users → perfil, matrículas, check-ins, conquistas,
+ * notificações e roles. Entitlements/audit_log são preservados (SET NULL).
+ * Protege contra auto-exclusão (evita lockout do próprio admin).
+ */
+export async function excluirGuerreiro(formData: FormData) {
+  const sb = await gateAdmin();
+  const admin = createAdminSupabase();
+  const userId = String(formData.get("user_id") ?? "");
+  const back = String(formData.get("back") || "/admin/guerreiros");
+  const erro = (msg: string): never => redirect(`${back}?erro=${encodeURIComponent(msg)}`);
+  if (!userId) erro("Usuário inválido.");
+
+  // Impede excluir o próprio usuário logado.
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+  const { data: meRow } = user
+    ? await sb.from("users").select("id").eq("auth_user_id", user.id).maybeSingle()
+    : { data: null };
+  if ((meRow as { id: string } | null)?.id === userId)
+    erro("Você não pode excluir o seu próprio usuário.");
+
+  const { data: uRow } = await sb
+    .from("users")
+    .select("auth_user_id, email")
+    .eq("id", userId)
+    .maybeSingle();
+  const u = uRow as { auth_user_id: string; email: string } | null;
+  if (!u) erro("Guerreiro não encontrado.");
+
+  const { error } = await admin.auth.admin.deleteUser(u!.auth_user_id);
+  if (error) erro(`Não foi possível excluir: ${error.message}`);
+
+  await audit("guerreiro_excluido", `user:${userId}`, { email: u!.email });
+  revalidatePath("/admin/guerreiros");
+  redirect(`${back}?ok=${encodeURIComponent("Guerreiro excluído.")}`);
+}
+
 /** Reenvia o e-mail de convite (reusa o fluxo existente) para a matrícula mais recente. */
 export async function reenviarConvite(formData: FormData) {
   const sb = await gateAdmin();

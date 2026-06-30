@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { Avatar } from "@/components/ui/avatar";
-import { Card, Tag, Badge, ButtonLink, Button } from "@/components/ui/primitives";
+import { Card, Tag, Badge, ButtonLink, Button, buttonClasses } from "@/components/ui/primitives";
 import { EmptyState } from "@/components/ui/cards";
 import { Aviso } from "@/components/admin/ui";
-import { reenviarConvite } from "@/lib/admin/guerreiros-actions";
+import { ConfirmSubmit } from "@/components/admin/confirm-submit";
+import { reenviarConvite, excluirGuerreiro } from "@/lib/admin/guerreiros-actions";
 import { formCancelar, formReativar } from "@/lib/admin/forms";
 import { STATUS_META, FILTROS, FLUXO, type CadastroRow, type StatusOp } from "@/lib/admin/cadastros-data";
 
@@ -83,6 +84,16 @@ function Acoes({ r }: { r: CadastroRow }) {
       {r.status === "ativo" ? lifecycle(formCancelar, "Desativar", "danger") : null}
       {r.status === "cancelado" ? lifecycle(formReativar, "Reativar", "success") : null}
       {editar}
+      <form action={excluirGuerreiro}>
+        <input type="hidden" name="user_id" value={r.userId} />
+        <input type="hidden" name="back" value={BACK} />
+        <ConfirmSubmit
+          message={`Excluir ${r.nome} definitivamente? Remove acesso, perfil, matrículas e todo o histórico. Esta ação NÃO pode ser desfeita.`}
+          className={buttonClasses("danger", false)}
+        >
+          Excluir
+        </ConfirmSubmit>
+      </form>
     </div>
   );
 }

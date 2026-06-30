@@ -1,10 +1,11 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { StatusBadge, Aviso } from "@/components/admin/ui";
 import { AcessoSistema } from "@/components/admin/acesso-sistema";
-import { ButtonLink, Card, Button } from "@/components/ui/primitives";
+import { ButtonLink, Card, Button, buttonClasses } from "@/components/ui/primitives";
 import { TextInput, Select } from "@/components/ui/fields";
+import { ConfirmSubmit } from "@/components/admin/confirm-submit";
 import { nomeDeGuerreiro } from "@/lib/identity";
-import { editarGuerreiroPerfil, reenviarConvite } from "@/lib/admin/guerreiros-actions";
+import { editarGuerreiroPerfil, reenviarConvite, excluirGuerreiro } from "@/lib/admin/guerreiros-actions";
 import { formConceder, formCancelar, formReativar } from "@/lib/admin/forms";
 
 const ORIGEM_LABEL: Record<string, string> = {
@@ -268,6 +269,24 @@ export default async function GuerreiroDetalhe({
             ))}
           </div>
         )}
+      </section>
+
+      {/* 7 · Zona de perigo — exclusão definitiva */}
+      <section className="rounded-2xl border border-danger/40 bg-danger/[0.04] px-4 py-4">
+        <h2 className="mb-1 text-sm uppercase tracking-wider text-danger">Zona de perigo</h2>
+        <p className="mb-3 text-xs text-subtle">
+          A exclusão remove acesso, perfil, matrículas e todo o histórico. Não pode ser desfeita.
+        </p>
+        <form action={excluirGuerreiro}>
+          <input type="hidden" name="user_id" value={id} />
+          <input type="hidden" name="back" value="/admin/guerreiros" />
+          <ConfirmSubmit
+            message={`Excluir ${nomeDeGuerreiro(perfil?.nome_guerreiro)} definitivamente? Remove acesso, perfil, matrículas e todo o histórico. Esta ação NÃO pode ser desfeita.`}
+            className={buttonClasses("danger", false)}
+          >
+            Excluir guerreiro
+          </ConfirmSubmit>
+        </form>
       </section>
     </div>
   );
