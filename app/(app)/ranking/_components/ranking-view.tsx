@@ -111,18 +111,20 @@ function Tendencia({ v }: { v: number }) {
   );
 }
 
-/** Pódio (top 3) — medalhas grandes, 1º ao centro e elevado. */
+/** Pódio (top 3) — medalhas grandes, líder ao centro e elevado. */
 function Podio({ top, metricaLabel }: { top: RankRow[]; metricaLabel: string }) {
-  // Ordem visual: 2º · 1º · 3º.
-  const ordem = [top.find((r) => r.posicao === 2), top.find((r) => r.posicao === 1), top.find((r) => r.posicao === 3)];
+  // `top` já vem em ordem de classificação. NÃO indexar por posicao (rank() gera
+  // empates/lacunas: 1,1,3 sem o "2"). Visual: 2ª linha · líder · 3ª linha.
+  const lider = top[0];
+  const ordem = top.length >= 3 ? [top[1], top[0], top[2]] : top;
+  const cols = top.length >= 3 ? "grid-cols-3" : top.length === 2 ? "grid-cols-2" : "grid-cols-1";
   return (
-    <section aria-label="Pódio" className="grid grid-cols-3 items-end gap-2">
+    <section aria-label="Pódio" className={`grid items-end gap-2 ${cols}`}>
       {ordem.map((r, idx) => {
-        if (!r) return <div key={idx} />;
-        const primeiro = r.posicao === 1;
+        const primeiro = r === lider;
         return (
           <Reveal
-            key={r.posicao}
+            key={idx}
             delay={idx * 70}
             className={`flex flex-col items-center rounded-2xl border px-2 pb-3 text-center ${
               primeiro ? "pt-5" : "pt-3"
@@ -176,8 +178,10 @@ export function RankingView({
   const total = totalGuerreiros ?? rows.length;
   const minha = rows.find((r) => r.ehVoce) ?? null;
   const unidade = /dias|streak/i.test(metricaLabel) ? "dias" : "pts";
-  const top = rows.filter((r) => r.posicao <= 3);
-  const resto = rows.filter((r) => r.posicao > 3);
+  // Pódio = as 3 primeiras COLOCAÇÕES por ordem real; lista = o restante.
+  // Usar slice (não filtrar por posicao<=3): rank() gera empates/lacunas.
+  const top = rows.slice(0, 3);
+  const resto = rows.slice(3);
 
   return (
     <div className="flex flex-col gap-6">
@@ -261,7 +265,7 @@ export function RankingView({
             <section className="flex flex-col gap-2">
               <Divider label="Classificação" />
               {resto.map((r, idx) => (
-                <Reveal key={r.posicao} delay={Math.min(idx, 8) * 40}>
+                <Reveal key={idx} delay={Math.min(idx, 8) * 40}>
                   <div
                     className={`flex items-center gap-3 rounded-2xl border px-3 py-3 transition-colors duration-fast ease-standard ${
                       r.ehVoce
