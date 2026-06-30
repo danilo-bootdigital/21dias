@@ -70,18 +70,25 @@ function AvatarNivel({
   nome,
   nivel,
   size,
+  anel = "soft",
 }: {
   foto?: string | null;
   nome?: string;
   nivel?: NivelKey;
   size: number;
+  /** Moldura da foto: dourada (Você) ou sutil (demais). */
+  anel?: "gold" | "soft";
 }) {
   const i = nivel ? NIVEL_INFO[nivel] : null;
   const badge = Math.max(16, Math.round(size * 0.42));
   const style = { width: size, height: size, "--b": `${badge}px` } as CSSProperties;
+  const anelCls =
+    anel === "gold"
+      ? "ring-2 ring-gold/70 ring-offset-2 ring-offset-ground"
+      : "ring-1 ring-white/10";
   return (
     <span className="relative shrink-0" style={style}>
-      <Avatar src={foto} nome={nome} size={size} />
+      <Avatar src={foto} nome={nome} size={size} className={anelCls} />
       {i ? (
         <Medal
           tier={i.tier}
@@ -145,7 +152,7 @@ function Podio({ top, metricaLabel }: { top: RankRow[]; metricaLabel: string }) 
               className="font-display font-extrabold"
             />
             <span className="mt-2">
-              <AvatarNivel foto={r.foto} nome={r.nome} nivel={r.nivel} size={primeiro ? 52 : 44} />
+              <AvatarNivel foto={r.foto} nome={r.nome} nivel={r.nivel} size={primeiro ? 52 : 44} anel={r.ehVoce ? "gold" : "soft"} />
             </span>
             <p
               className={`mt-1.5 w-full truncate text-sm font-semibold ${
@@ -212,7 +219,7 @@ export function RankingView({
               <Reveal>
                 <div className="rounded-2xl border border-gold/60 bg-surface-raised p-5 shadow-glow-gold">
                   <div className="flex items-center gap-4">
-                    <AvatarNivel foto={minha.foto} nome={minha.nome} nivel={minha.nivel} size={64} />
+                    <AvatarNivel foto={minha.foto} nome={minha.nome} nivel={minha.nivel} size={64} anel="gold" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         {minha.posicao <= 3 ? (
@@ -276,7 +283,7 @@ export function RankingView({
                     <span className="w-7 shrink-0 text-center font-display font-bold tabular-nums text-subtle">
                       {r.posicao}
                     </span>
-                    <AvatarNivel foto={r.foto} nome={r.nome} nivel={r.nivel} size={40} />
+                    <AvatarNivel foto={r.foto} nome={r.nome} nivel={r.nivel} size={40} anel={r.ehVoce ? "gold" : "soft"} />
                     <div className="min-w-0 flex-1">
                       <p
                         className={`truncate text-sm font-medium ${
