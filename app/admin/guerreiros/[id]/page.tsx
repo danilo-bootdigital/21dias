@@ -5,7 +5,12 @@ import { ButtonLink, Card, Button, buttonClasses } from "@/components/ui/primiti
 import { TextInput, Select } from "@/components/ui/fields";
 import { ConfirmSubmit } from "@/components/admin/confirm-submit";
 import { nomeDeGuerreiro } from "@/lib/identity";
-import { editarGuerreiroPerfil, reenviarConvite, excluirGuerreiro } from "@/lib/admin/guerreiros-actions";
+import {
+  editarGuerreiroPerfil,
+  reenviarConvite,
+  enviarResetSenha,
+  excluirGuerreiro,
+} from "@/lib/admin/guerreiros-actions";
 import { formConceder, formCancelar, formReativar } from "@/lib/admin/forms";
 
 const ORIGEM_LABEL: Record<string, string> = {
@@ -131,6 +136,16 @@ export default async function GuerreiroDetalhe({
           <Button type="submit" variante="outline">
             Reenviar convite
           </Button>
+        </form>
+        <form action={enviarResetSenha}>
+          <input type="hidden" name="user_id" value={id} />
+          <input type="hidden" name="back" value={back} />
+          <ConfirmSubmit
+            message={`Enviar para ${email || "o e-mail do Guerreiro"} um link para ele mesmo redefinir a senha? Você não define nem vê a senha.`}
+            className={buttonClasses("outline", true)}
+          >
+            Enviar link de redefinição de senha
+          </ConfirmSubmit>
         </form>
         <ButtonLink href="/admin/guerreiros" variante="ghost">
           Voltar para a lista

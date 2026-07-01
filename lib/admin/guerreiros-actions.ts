@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 import { enviarConviteMatricula } from "@/lib/email/enviar-convite-matricula";
+import { enviarEmail } from "@/lib/email/client";
+import { resetSenhaTemplate } from "@/lib/email/templates/reset-senha";
 import { nomeDeGuerreiro } from "@/lib/identity";
 import { audit } from "@/lib/admin/audit";
 
@@ -107,6 +109,64 @@ export async function excluirGuerreiro(formData: FormData) {
   await audit("guerreiro_excluido", `user:${userId}`, { email: u!.email });
   revalidatePath("/admin/guerreiros");
   redirect(`${back}?ok=${encodeURIComponent("Guerreiro excluído.")}`);
+}
+
+/**
+ * Envia ao Guerreiro um link seguro de REDEFINIÇÃO DE SENHA (fluxo oficial do
+ * Supabase Auth). O admin NUNCA vê, define ou edita a senha: geramos um token de
+ * recuperação (service-role) e enviamos por e-mail o link que leva o próprio
+ * Guerreiro a `/redefinir`.
+ *
+ * O link aponta direto para `/auth/confirm` em PRODUÇÃO com `token_hash`+`type`
+ * (verificado via `verifyOtp` — sem PKCE), então funciona em qualquer navegador
+ * e independe do Site URL/Redirect URLs configurados no Supabase.
+ */
+export async function enviarResetSenha(formData: FormData) {
+  const sb = await gateAdmin();
+  const userId = String(formData.get("user_id") ?? "");
+  const back = String(formData.get("back") || `/admin/guerreiros/${userId}`);
+  const erro = (msg: string): never => redirect(`${back}?erro=${encodeURIComponent(msg)}`);
+  if (!userId) erro("Usuário inválido.");
+
+  const { data: uRow } = await sb
+    .from("users")
+    .select("email, guerreiro_profiles(nome_guerreiro)")
+    .eq("id", userId)
+    .maybeSingle();
+  const u = uRow as
+    | { email: string; guerreiro_profiles: { nome_guerreiro: string | null } | null }
+    | null;
+  if (!u?.email) erro("Guerreiro sem e-mail cadastrado.");
+
+  // Gera o token de recuperação (service-role). Não dispara e-mail do Supabase:
+  // montamos nós mesmos o link para nossa rota de confirmação em produção.
+  const admin = createAdminSupabase();
+  const { data: linkData, error: linkErro } = await admin.auth.admin.generateLink({
+    type: "recovery",
+    email: u!.email,
+  });
+  const tokenHash = linkData?.properties?.hashed_token;
+  if (linkErro || !tokenHash) erro("Não foi possível gerar o link de redefinição.");
+
+  const link =
+    `${URL_ACESSO}/auth/confirm` +
+    `?token_hash=${encodeURIComponent(tokenHash!)}&type=recovery&next=${encodeURIComponent("/redefinir")}`;
+
+  const { subject, html, text } = resetSenhaTemplate({
+    nome: nomeDeGuerreiro(u!.guerreiro_profiles?.nome_guerreiro),
+    link,
+  });
+  const r = await enviarEmail({ to: u!.email, subject, html, text });
+
+  await audit("reset_senha_enviado", `user:${userId}`, {
+    email: u!.email,
+    status: r.ok ? "enviado" : "erro",
+    ...(r.ok ? {} : { erro: r.error }),
+  });
+
+  revalidatePath(back);
+  if (!r.ok) erro("Não foi possível enviar o e-mail de redefinição agora. Tente novamente.");
+  redirect(`${back}?ok=${encodeURIComponent("Link de redefinição enviado por e-mail.")}`);
 }
 
 /** Reenvia o e-mail de convite (reusa o fluxo existente) para a matrícula mais recente. */
