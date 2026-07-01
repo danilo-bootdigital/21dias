@@ -8,8 +8,14 @@ import { reivindicarEntitlements } from "@/lib/entitlements/claim";
 import { destinoPosLogin } from "@/lib/auth/destino";
 
 async function getOrigin() {
+  // A URL canônica do app é a fonte de verdade para links enviados por e-mail
+  // (recuperação/confirmação de conta). NÃO dependemos do header `origin` da
+  // requisição, que varia por domínio de preview e jamais deve montar URLs de
+  // auth em produção. Em produção, defina NEXT_PUBLIC_APP_URL na Vercel.
+  const configurada = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "");
+  if (configurada) return configurada;
   const h = await headers();
-  return h.get("origin") ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  return h.get("origin") ?? "http://localhost:3000";
 }
 
 export async function login(formData: FormData) {
